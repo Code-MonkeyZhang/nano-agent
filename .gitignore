@@ -41,7 +41,3 @@ packages/cli/download-ripgrep*/
 # GHA credentials
 gha-creds-*.json
 
-# Log files
-patch_output.log
-
-.genkit
