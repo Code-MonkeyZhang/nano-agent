@@ -76,11 +76,23 @@ mini-agent-ts --workspace /path/to/dir     # Use specific workspace directory
   };
 }
 
-function main(): void {
+async function runAgent(workspaceDir: string): Promise<void> {
+  console.log(`Agent starting in: ${workspaceDir}`);
+
+  // 加载配置文件
+  // 初始化 LLM Client
+  // 初始化工具
+  // 加载system prompt
+  // 把skill加载到system prompt
+  // 创建Agent类
+  // 打印欢迎信息
+  // 配置prompt toolkit的输入
+  // 正式开启agent交互主循环
+  // 清理MCP连接
+}
+
+async function main(): Promise<void> {
   const args = parseArgs();
-
-  print_banner();
-
   let workspaceDir: string;
 
   if (args.workspace) {
@@ -96,9 +108,14 @@ function main(): void {
     console.log(`\n$Workspace initialized at: ${workspaceDir}`);
   } catch (error) {
     console.error(`❌ Error creating workspace directory: ${error}`);
-    // 捕获到错误时，应该退出进程
     process.exit(1);
   }
+
+  print_banner();
+  await runAgent(workspaceDir);
 }
 
-main();
+main().catch((error) => {
+  console.error("Fatal error:", error);
+  process.exit(1);
+});
