@@ -6,6 +6,8 @@ import type { CompleterResult } from "node:readline";
 import { createInterface } from "node:readline/promises";
 import { Config } from "./config.js";
 import { LLMClient } from "./llm/llm_wrapper.js";
+import { calculateDelay, RetryExhaustedError } from "./retry.js";
+
 import { Agent } from "./agent.js";
 // ============ 工具函数 ============
 
@@ -127,8 +129,22 @@ async function runAgent(workspaceDir: string): Promise<void> {
     config.llm.apiKey,
     config.llm.apiBase,
     config.llm.provider,
-    config.llm.model
+    config.llm.model,
+    config.llm.retry
   );
+
+  // 设置Retry回调函数
+  const onRetry = (error: unknown, attempt: number) => {
+    console.log(`\n⚠️  LLM call failed (attempt ${attempt}): ${String(error)}`);
+    const nextDelay = calculateDelay(attempt, config.llm.retry);
+    console.log(
+      `   Retrying in ${(nextDelay / 1000).toFixed(1)}s (attempt ${
+        attempt + 1
+      })...`
+    );
+  };
+
+  llmClient.retryCallback = onRetry;
 
   // 加载 system prompt
   let systemPrompt: string;
@@ -230,7 +246,26 @@ async function runAgent(workspaceDir: string): Promise<void> {
       if (userInput === "exit" || userInput === "quit" || userInput === "q")
         break;
       agent.addUserMessage(userInput);
-      await agent.run();
+
+      try {
+        await agent.run();
+      } catch (error) {
+        if (error instanceof RetryExhaustedError) {
+          console.log(
+            `\n❌ LLM request failed after ${error.attempts} attempts.`
+          );
+          console.log(`   Last error: ${String(error.lastError)}`);
+          console.log("   Please check your API key and configuration.\n");
+        } else if (error instanceof Error) {
+          console.log(`\n❌ Unexpected error: ${error.message}`);
+          console.log("   Please try again or report this issue.\n");
+        }
+
+        // 移除未完成的用户消息
+        agent.messages.pop();
+        continue;
+      }
+
       console.log("\n" + "─".repeat(60) + "\n");
     }
   } finally {

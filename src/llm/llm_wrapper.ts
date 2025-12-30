@@ -8,35 +8,51 @@ import { LLMClientBase } from "./base.js";
 import { OpenAIClient } from "./openai_client.js";
 // 假设你有 AnthropicClient
 // import { AnthropicClient } from "./anthropic_client.js";
+import { RetryConfig } from "../config.js";
 
 export class LLMClient {
   public apiKey: string;
   public apiBase: string;
   public provider: string;
   public model: string;
-  public llmClient: LLMClientBase;
+  public retryConfig: RetryConfig;
+
+  // 内部 client 实例，设为私有以保持封装性
+  private _client: LLMClientBase;
 
   constructor(
     apiKey: string,
     apiBase: string,
     provider: string,
-    model: string
+    model: string,
+    retryConfig: RetryConfig
   ) {
     this.apiKey = apiKey;
     this.provider = provider;
     this.model = model;
+    this.retryConfig = retryConfig;
 
     let fullApiBase: string = "";
 
     switch (provider) {
       case LLMProvider.ANTHROPIC:
         fullApiBase = `${apiBase.replace(/\/+$/, "")}/anthropic`;
-        this.llmClient = new OpenAIClient(apiKey, fullApiBase, model);
+        this._client = new OpenAIClient(
+          apiKey,
+          fullApiBase,
+          model,
+          retryConfig
+        );
         break;
 
       case LLMProvider.OPENAI:
         fullApiBase = `${apiBase.replace(/\/+$/, "")}/v1`;
-        this.llmClient = new OpenAIClient(apiKey, fullApiBase, model);
+        this._client = new OpenAIClient(
+          apiKey,
+          fullApiBase,
+          model,
+          retryConfig
+        );
         break;
 
       default:
@@ -46,17 +62,24 @@ export class LLMClient {
     this.apiBase = fullApiBase;
   }
 
+  /**
+   * Set retry callback.
+   */
+  set retryCallback(value: (error: unknown, attempt: number) => void) {
+    this._client.retryCallback = value;
+  }
+
   async generate(
     messages: Message[],
     tools?: any[] | null
   ): Promise<LLMResponse> {
-    return await this.llmClient.generate(messages, tools);
+    return await this._client.generate(messages, tools);
   }
 
   async *generateStream(
     messages: Message[],
     tools?: any[] | null
   ): AsyncGenerator<LLMStreamChunk> {
-    yield* this.llmClient.generateStream(messages, tools);
+    yield* this._client.generateStream(messages, tools);
   }
 }

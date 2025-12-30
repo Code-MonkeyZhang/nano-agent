@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 
 // ============ 配置类型 ============
 
-/** Retry configuration */
+/** Retry configuration Default Value*/
 export class RetryConfig {
   enabled: boolean = true;
   maxRetries: number = 3;
@@ -20,7 +20,13 @@ export class RetryConfig {
   exponentialBase: number = 2.0;
 
   constructor(data: Partial<RetryConfig> = {}) {
-    Object.assign(this, data);
+    // 手动逐个检查，如果 data 中有值且不是 undefined，就覆盖
+    if (data.enabled !== undefined) this.enabled = data.enabled;
+    if (data.maxRetries !== undefined) this.maxRetries = data.maxRetries;
+    if (data.initialDelay !== undefined) this.initialDelay = data.initialDelay;
+    if (data.maxDelay !== undefined) this.maxDelay = data.maxDelay;
+    if (data.exponentialBase !== undefined)
+      this.exponentialBase = data.exponentialBase;
   }
 }
 
@@ -48,7 +54,10 @@ export class AgentConfig {
   systemPromptPath: string = "system_prompt.md";
 
   constructor(data: Partial<AgentConfig> = {}) {
-    Object.assign(this, data);
+    if (data.maxSteps !== undefined) this.maxSteps = data.maxSteps;
+    if (data.workspaceDir !== undefined) this.workspaceDir = data.workspaceDir;
+    if (data.systemPromptPath !== undefined)
+      this.systemPromptPath = data.systemPromptPath;
   }
 }
 
@@ -63,7 +72,15 @@ export class ToolsConfig {
   mcpConfigPath: string = "mcp.json";
 
   constructor(data: Partial<ToolsConfig> = {}) {
-    Object.assign(this, data);
+    if (data.enableFileTools !== undefined)
+      this.enableFileTools = data.enableFileTools;
+    if (data.enableBash !== undefined) this.enableBash = data.enableBash;
+    if (data.enableNote !== undefined) this.enableNote = data.enableNote;
+    if (data.enableSkills !== undefined) this.enableSkills = data.enableSkills;
+    if (data.skillsDir !== undefined) this.skillsDir = data.skillsDir;
+    if (data.enableMcp !== undefined) this.enableMcp = data.enableMcp;
+    if (data.mcpConfigPath !== undefined)
+      this.mcpConfigPath = data.mcpConfigPath;
   }
 }
 

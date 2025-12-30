@@ -8,6 +8,8 @@ import type {
   ToolCall,
 } from "../schema/index.js";
 import { LLMClientBase } from "./base.js";
+import { RetryConfig } from "../config.js";
+import { asyncRetry } from "../retry.js";
 
 /**
  * LLM client using OpenAI's protocol.
@@ -21,9 +23,10 @@ export class OpenAIClient extends LLMClientBase {
   constructor(
     apiKey: string,
     apiBase: string = "https://api.minimaxi.com/v1",
-    model: string = "MiniMax-M2"
+    model: string = "MiniMax-M2",
+    retryConfig: RetryConfig
   ) {
-    super(apiKey, apiBase, model);
+    super(apiKey, apiBase, model, retryConfig);
     this.client = new OpenAI({
       apiKey: apiKey,
       baseURL: apiBase,
@@ -57,7 +60,8 @@ export class OpenAIClient extends LLMClientBase {
    * @returns OpenAI ChatCompletion response
    */
   private async makeApiRequest(
-    apiMessages: Record<string, any>[]
+    apiMessages: Record<string, any>[],
+    tools?: any[] | null
   ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
     const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming =
       {
@@ -144,7 +148,28 @@ export class OpenAIClient extends LLMClientBase {
     tool?: any[] | null
   ): Promise<LLMResponse> {
     const requestParams = this.prepareRequest(messages);
-    const response = await this.makeApiRequest(requestParams["apiMessages"]);
+
+    let response: OpenAI.Chat.Completions.ChatCompletion;
+
+    // 根据 enabled 决定是否使用重试
+    if (this.retryConfig.enabled) {
+      response = await asyncRetry(
+        async () => {
+          return await this.makeApiRequest(
+            requestParams["apiMessages"],
+            requestParams["tools"]
+          );
+        },
+        this.retryConfig,
+        this.retryCallback
+      );
+    } else {
+      // 不使用重试，直接调用
+      response = await this.makeApiRequest(
+        requestParams["apiMessages"],
+        requestParams["tools"]
+      );
+    }
 
     return this.parseResponse(response);
   }
@@ -155,12 +180,30 @@ export class OpenAIClient extends LLMClientBase {
   ): AsyncGenerator<LLMStreamChunk> {
     const [, apiMessages] = this.convertMessages(messages);
 
-    const stream = await this.client.chat.completions.create({
-      model: this.model,
-      messages:
-        apiMessages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-      stream: true,
-    });
+    let stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
+
+    // 根据 enabled 决定是否使用重试
+    if (this.retryConfig.enabled) {
+      stream = await asyncRetry(
+        async () => {
+          return await this.client.chat.completions.create({
+            model: this.model,
+            messages:
+              apiMessages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+            stream: true,
+          });
+        },
+        this.retryConfig,
+        this.retryCallback
+      );
+    } else {
+      stream = await this.client.chat.completions.create({
+        model: this.model,
+        messages:
+          apiMessages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        stream: true,
+      });
+    }
 
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta;
