@@ -1,4 +1,4 @@
-import type { Message, LLMResponse, LLMStreamChunk } from "../schema/index.js";
+import type { Message, LLMStreamChunk } from "../schema/index.js";
 import { RetryConfig } from "../config.js";
 
 export abstract class LLMClientBase {
@@ -28,18 +28,6 @@ export abstract class LLMClientBase {
     this.retryConfig = retryConfig ?? new RetryConfig();
     this.retryCallback = null;
   }
-
-  /**
-   * Generate response from LLM.
-   *
-   * @param messages List of conversation messages
-   * @param tools Optional list of tool objects
-   * @returns Promise resolving to LLMResponse
-   */
-  public abstract generate(
-    messages: Message[],
-    tools?: unknown[] | null
-  ): Promise<LLMResponse>;
 
   /**
    * Generate streaming response from LLM.

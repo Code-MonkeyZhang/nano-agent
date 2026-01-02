@@ -1,12 +1,11 @@
 import OpenAI from "openai";
 import type {
   Message,
-  LLMResponse,
   LLMStreamChunk,
-  TokenUsage,
-  FunctionCall,
   ToolCall,
 } from "../schema/index.js";
+import type { Tool } from "../tools/index.js";
+import { toOpenAISchema } from "../tools/index.js";
 import { LLMClientBase } from "./base.js";
 import { RetryConfig } from "../config.js";
 import { asyncRetry } from "../retry.js";
@@ -39,179 +38,229 @@ export class OpenAIClient extends LLMClientBase {
     let apiMessages = [];
 
     for (const msg of messages) {
-      // msg 是每个消息对象
+      // `msg` is a single message object
       if (msg.role === "system") {
         apiMessages.push({ role: "system", content: msg.content });
         continue;
       } else if (msg.role === "user") {
         apiMessages.push({ role: "user", content: msg.content });
       } else if (msg.role === "assistant") {
-        apiMessages.push({ role: "assistant", content: msg.content });
+        const assistantMsg: Record<string, unknown> = {
+          role: "assistant",
+        };
+
+        if (msg.content) {
+          assistantMsg["content"] = msg.content;
+        }
+
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          assistantMsg["tool_calls"] = msg.tool_calls.map((toolCall) => ({
+            id: toolCall.id,
+            type: "function",
+            function: {
+              name: toolCall.function.name,
+              arguments: JSON.stringify(toolCall.function.arguments ?? {}),
+            },
+          }));
+        }
+
+        if (msg.thinking) {
+          assistantMsg["reasoning_details"] = [{ text: msg.thinking }];
+        }
+
+        apiMessages.push(assistantMsg);
+      } else if (msg.role === "tool") {
+        const toolMsg: Record<string, unknown> = {
+          role: "tool",
+          content: msg.content,
+        };
+
+        if (msg.tool_call_id) {
+          toolMsg["tool_call_id"] = msg.tool_call_id;
+        }
+        if (msg.name) {
+          toolMsg["name"] = msg.name;
+        }
+        apiMessages.push(toolMsg);
       }
     }
 
     return [null, apiMessages];
   }
+
   /**
-   * Execute API request.
+   * Converts various tool formats to OpenAI's schema.
    *
-   * @param apiMessages List of messages in OpenAI format
-   * @param tools Optional list of tools
-   * @returns OpenAI ChatCompletion response
+   *
+   * @param tools List of tools in mixed formats
+   * @returns List of tools formatted for OpenAI API
+   * @throws {TypeError} If a tool format is unrecognized
    */
-  private async makeApiRequest(
-    apiMessages: Record<string, any>[],
-    tools?: any[] | null
-  ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
-    const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming =
-      {
-        model: this.model,
-        messages:
-          apiMessages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-      };
+  private convertTools(tools: unknown[]): Record<string, any>[] {
+    const converted: Record<string, any>[] = [];
 
-    // Enable reasoning_split to separate thinking content (for MiniMax)
-    // (params as any).reasoning_split = true;
+    for (const tool of tools) {
+      if (tool && typeof tool === "object") {
+        const toolObj = tool as Record<string, any>;
 
-    const response = await this.client.chat.completions.create(params);
-    return response;
+        const toolType = toolObj["type"];
+        if (toolType === "function" && toolObj["function"]) {
+          converted.push(toolObj);
+          continue;
+        }
+
+        if (
+          toolObj["input_schema"] &&
+          toolObj["name"] &&
+          toolObj["description"]
+        ) {
+          converted.push({
+            type: "function",
+            function: {
+              name: toolObj["name"],
+              description: toolObj["description"],
+              parameters: toolObj["input_schema"],
+            },
+          });
+          continue;
+        }
+
+        if (
+          toolObj["name"] &&
+          toolObj["description"] &&
+          toolObj["parameters"]
+        ) {
+          converted.push(toOpenAISchema(toolObj as Tool));
+          continue;
+        }
+      }
+
+      throw new TypeError(`Unsupported tool type: ${typeof tool}`);
+    }
+
+    return converted;
   }
 
   /**
    * Prepare the request for OpenAI API.
    *
-   /**
-    * Prepare the request for OpenAI API.
-    *
-    * @param messages Array of Message objects
-    * @returns Dictionary containing request parameters
-    */
-  public override prepareRequest(messages: Message[]): Record<string, any> {
+   * @param messages Array of Message objects
+   * @param tools Optional list of available tools
+   * @returns Dictionary containing request parameters
+   */
+  public override prepareRequest(
+    messages: Message[],
+    tools?: unknown[] | null
+  ): Record<string, any> {
     const [, apiMessages] = this.convertMessages(messages);
     return {
       apiMessages,
+      tools: tools ?? null,
     };
-  }
-
-  private parseResponse(
-    response: OpenAI.Chat.Completions.ChatCompletion
-  ): LLMResponse {
-    const message = response.choices[0].message;
-    // Extract text content
-    const textContent = message.content || "";
-
-    // Extract thinking content from reasoning_details
-    let thinkingContent: string | null = null;
-    const msgAny = message as any;
-    if (msgAny.reasoning_details && Array.isArray(msgAny.reasoning_details)) {
-      thinkingContent = msgAny.reasoning_details
-        .map((detail: any) => detail.text || "")
-        .join("");
-    }
-
-    // Extract tool calls (if any)
-    let toolCalls: ToolCall[] | null = null;
-    if (message.tool_calls && message.tool_calls.length > 0) {
-      toolCalls = (message.tool_calls as any[])
-        .filter((tc) => tc.type === "function" && tc.function)
-        .map((tc) => ({
-          id: tc.id,
-          type: "function",
-          function: {
-            name: tc.function.name,
-            arguments: JSON.parse(tc.function.arguments),
-          } as FunctionCall,
-        }));
-    }
-
-    // Extract token usage
-    let usage: TokenUsage | null = null;
-    if (response.usage) {
-      usage = {
-        prompt_tokens: response.usage.prompt_tokens || 0,
-        completion_tokens: response.usage.completion_tokens || 0,
-        total_tokens: response.usage.total_tokens || 0,
-      };
-    }
-
-    return {
-      content: textContent,
-      thinking: thinkingContent,
-      tool_calls: toolCalls,
-      finish_reason: response.choices[0].finish_reason || "stop",
-      usage: usage,
-    };
-  }
-
-  public override async generate(
-    messages: Message[],
-    tool?: any[] | null
-  ): Promise<LLMResponse> {
-    const requestParams = this.prepareRequest(messages);
-
-    let response: OpenAI.Chat.Completions.ChatCompletion;
-
-    // 根据 enabled 决定是否使用重试
-    if (this.retryConfig.enabled) {
-      response = await asyncRetry(
-        async () => {
-          return await this.makeApiRequest(
-            requestParams["apiMessages"],
-            requestParams["tools"]
-          );
-        },
-        this.retryConfig,
-        this.retryCallback
-      );
-    } else {
-      // 不使用重试，直接调用
-      response = await this.makeApiRequest(
-        requestParams["apiMessages"],
-        requestParams["tools"]
-      );
-    }
-
-    return this.parseResponse(response);
   }
 
   public override async *generateStream(
     messages: Message[],
     tools?: any[] | null
   ): AsyncGenerator<LLMStreamChunk> {
-    const [, apiMessages] = this.convertMessages(messages);
+    const requestParams = this.prepareRequest(messages, tools);
+    const apiMessages = requestParams["apiMessages"];
+    const toolSchemas =
+      requestParams["tools"] && requestParams["tools"].length > 0
+        ? this.convertTools(requestParams["tools"])
+        : undefined;
 
     let stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
 
-    // 根据 enabled 决定是否使用重试
+    // Use retry depending on `enabled`
     if (this.retryConfig.enabled) {
       stream = await asyncRetry(
         async () => {
-          return await this.client.chat.completions.create({
-            model: this.model,
-            messages:
-              apiMessages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-            stream: true,
-          });
+          const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming =
+            {
+              model: this.model,
+              messages:
+                apiMessages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+              stream: true,
+            };
+          if (toolSchemas) {
+            (params as any).tools = toolSchemas;
+          }
+          return await this.client.chat.completions.create(params);
         },
         this.retryConfig,
         this.retryCallback
       );
     } else {
-      stream = await this.client.chat.completions.create({
-        model: this.model,
-        messages:
-          apiMessages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        stream: true,
-      });
+      const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming =
+        {
+          model: this.model,
+          messages:
+            apiMessages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+          stream: true,
+        };
+      if (toolSchemas) {
+        (params as any).tools = toolSchemas;
+      }
+      stream = await this.client.chat.completions.create(params);
     }
+
+    const toolCallAcc = new Map<
+      number,
+      {
+        id?: string;
+        type?: string;
+        name?: string;
+        argumentsText?: string;
+      }
+    >();
 
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta;
       const finishReason = chunk.choices[0]?.finish_reason;
 
+      if (delta && (delta as any).tool_calls) {
+        const incoming = (delta as any).tool_calls as any[];
+        incoming.forEach((call, idx) => {
+          const index = typeof call.index === "number" ? call.index : idx;
+          const existing = toolCallAcc.get(index) || {};
+          if (call.id) existing.id = call.id;
+          if (call.type) existing.type = call.type;
+          if (call.function?.name) existing.name = call.function.name;
+          if (call.function?.arguments) {
+            existing.argumentsText =
+              (existing.argumentsText || "") + call.function.arguments;
+          }
+          toolCallAcc.set(index, existing);
+        });
+      }
+
+      let toolCalls: ToolCall[] | undefined;
+      if (finishReason && toolCallAcc.size > 0) {
+        toolCalls = Array.from(toolCallAcc.values()).map((call) => {
+          let parsedArgs: Record<string, unknown> = {};
+          if (call.argumentsText) {
+            try {
+              parsedArgs = JSON.parse(call.argumentsText);
+            } catch {
+              parsedArgs = {};
+            }
+          }
+          return {
+            id: call.id || "",
+            type: call.type || "function",
+            function: {
+              name: call.name || "",
+              arguments: parsedArgs,
+            },
+          };
+        });
+      }
+
       yield {
         content: delta?.content || undefined,
         thinking: (delta as any)?.reasoning_content || undefined,
+        tool_calls: toolCalls,
         done: finishReason !== null && finishReason !== undefined,
         finish_reason: finishReason || undefined,
       };

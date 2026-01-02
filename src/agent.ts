@@ -2,12 +2,13 @@ import * as path from "node:path";
 import * as fs from "node:fs";
 import { LLMClient } from "./llm/llm_wrapper.js";
 import type { Message, ToolCall } from "./schema/index.js";
+import type { Tool, ToolResult } from "./tools/index.js";
 
-// ============ 常量 ============
+// ============ Constants ============
 
 const SEPARATOR_WIDTH = 60;
 
-// ============ 辅助函数 ============
+// ============ Helpers ============
 
 function buildSystemPrompt(basePrompt: string, workspaceDir: string): string {
   if (basePrompt.includes("Current Workspace")) {
@@ -23,7 +24,7 @@ All relative paths will be resolved relative to this directory.`
   );
 }
 
-// ============ Agent 类 ============
+// ============ Agent ============
 
 export class Agent {
   public llmClient: LLMClient;
@@ -32,10 +33,12 @@ export class Agent {
   public messages: Message[];
   public tokenLimit: number;
   public workspaceDir: string;
+  public tools: Map<string, Tool>; // Agent stores all tools in a Map
 
   constructor(
     llmClient: LLMClient,
     systemPrompt: string,
+    tools: Tool[] = [],
     maxSteps: number = 50,
     workspaceDir: string = "./workspace",
     tokenLimit: number = 8000
@@ -43,21 +46,39 @@ export class Agent {
     this.llmClient = llmClient;
     this.maxSteps = maxSteps;
     this.tokenLimit = tokenLimit;
+    this.tools = new Map();
 
     // Ensure workspace exists
     this.workspaceDir = path.resolve(workspaceDir);
     fs.mkdirSync(this.workspaceDir, { recursive: true });
 
-    // 将 workspace dir 注入 system prompt
+    // Inject workspace dir into system prompt
     this.systemPrompt = buildSystemPrompt(systemPrompt, workspaceDir);
     this.messages = [{ role: "system", content: this.systemPrompt }];
 
-    // TODO: 初始化 Logger
-    // TODO: 启动 TOKEN 计算
+    // TODO: Initialize logger
+    // TODO: Enable token accounting
+
+    // Register tools with the agent
+    for (const tool of tools) {
+      this.registerTool(tool);
+    }
   }
 
   addUserMessage(content: string): void {
     this.messages.push({ role: "user", content });
+  }
+
+  registerTool(tool: Tool): void {
+    this.tools.set(tool.name, tool);
+  }
+
+  getTool(name: string): Tool | undefined {
+    return this.tools.get(name);
+  }
+
+  listTools(): Tool[] {
+    return Array.from(this.tools.values());
   }
 
   clearHistoryKeepSystem(): number {
@@ -66,22 +87,53 @@ export class Agent {
     return removed;
   }
 
+  async executeTool(
+    name: string,
+    params: Record<string, unknown>
+  ): Promise<ToolResult> {
+    const tool = this.getTool(name);
+    if (!tool) {
+      return {
+        success: false,
+        content: "",
+        error: `Unknown tool: ${name}`,
+      };
+    }
+
+    try {
+      return await tool.execute(params);
+    } catch (error) {
+      const err = error as Error;
+      const details = err?.message ? err.message : String(error);
+      const stack = err?.stack ? `\n\nStack:\n${err.stack}` : "";
+      return {
+        success: false,
+        content: "",
+        error: `Tool execution failed: ${details}${stack}`,
+      };
+    }
+  }
+
   async run(): Promise<string> {
     for (let step = 0; step < this.maxSteps; step++) {
       // TODO: Check and summarize message history to prevent context overflow
 
-      // 打印 header
+      // Print header
       console.log();
       console.log("🤖 Assistant:");
 
-      // 流式输出
+      // Stream output
       let fullContent = "";
       let fullThinking = "";
       let toolCalls: ToolCall[] | null = null;
       let isThinkingPrinted = false;
 
-      for await (const chunk of this.llmClient.generateStream(this.messages)) {
-        // 打印思考内容
+      const toolList = this.listTools();
+      for await (const chunk of this.llmClient.generateStream(
+        this.messages,
+        toolList
+      )) {
+        // Print thinking content
         if (chunk.thinking) {
           if (!isThinkingPrinted) {
             console.log("💭 Thinking:");
@@ -92,10 +144,10 @@ export class Agent {
           fullThinking += chunk.thinking;
         }
 
-        // 打印主内容
+        // Print main content
         if (chunk.content) {
           if (isThinkingPrinted && fullContent === "") {
-            // 思考结束，开始输出内容
+            // Thinking finished; start printing the main content
             console.log();
             console.log("─".repeat(SEPARATOR_WIDTH));
             console.log();
@@ -104,13 +156,13 @@ export class Agent {
           fullContent += chunk.content;
         }
 
-        // 收集 tool calls
+        // Collect tool calls
         if (chunk.tool_calls) {
           toolCalls = chunk.tool_calls;
         }
       }
 
-      // 换行
+      // New line
       console.log();
 
       // Add assistant message
@@ -126,7 +178,32 @@ export class Agent {
         return fullContent;
       }
 
-      // TODO: Execute tool calls
+      // Iterate & Execute tool calls
+      for (const toolCall of toolCalls) {
+        const toolCallId = toolCall.id;
+        const functionName = toolCall.function.name;
+        const args = toolCall.function.arguments || {};
+
+        console.log(`\n🔧 使用工具: ${functionName}`);
+
+        const result = await this.executeTool(functionName, args);
+
+        if (result.success) {
+          console.log(`✓ Tool use success`);
+        } else {
+          console.log(`✗ Error: ${result.error ?? "Unknown error"}`);
+        }
+
+        // add Tool execute result to message queue
+        this.messages.push({
+          role: "tool",
+          content: result.success
+            ? result.content
+            : `Error: ${result.error ?? "Unknown error"}`,
+          tool_call_id: toolCallId,
+          name: functionName,
+        });
+      }
     }
 
     return `Task couldn't be completed after ${this.maxSteps} steps.`;

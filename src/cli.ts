@@ -7,9 +7,18 @@ import { createInterface } from "node:readline/promises";
 import { Config } from "./config.js";
 import { LLMClient } from "./llm/llm_wrapper.js";
 import { calculateDelay, RetryExhaustedError } from "./retry.js";
+import {
+  BashKillTool,
+  BashOutputTool,
+  BashTool,
+  EditTool,
+  ReadTool,
+  WriteTool,
+  type Tool,
+} from "./tools/index.js";
 
 import { Agent } from "./agent.js";
-// ============ 工具函数 ============
+// ============ Utilities ============
 
 function getProjectVersion(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -112,19 +121,19 @@ function printStats(agent: Agent, sessionStartMs: number): void {
   console.log("─".repeat(40) + "\n");
 }
 
-// ============ 核心启动逻辑 ============
+// ============ Main Startup Logic ============
 
 async function runAgent(workspaceDir: string): Promise<void> {
   console.log(`Agent starting in: ${workspaceDir}`);
   const sessionStartMs = Date.now();
 
-  // 加载配置文件
+  // Load configuration
   const configPath = Config.getDefaultConfigPath();
   const config = Config.fromYaml(configPath);
   console.log(`Config loaded from: ${configPath}`);
   console.log(`Model: ${config.llm.model}, Provider: ${config.llm.provider},`);
 
-  // 初始化 LLM Client
+  // Initialize LLM client
   const llmClient = new LLMClient(
     config.llm.apiKey,
     config.llm.apiBase,
@@ -133,7 +142,7 @@ async function runAgent(workspaceDir: string): Promise<void> {
     config.llm.retry
   );
 
-  // 设置Retry回调函数
+  // Configure retry callback
   const onRetry = (error: unknown, attempt: number) => {
     console.log(`\n⚠️  LLM call failed (attempt ${attempt}): ${String(error)}`);
     const nextDelay = calculateDelay(attempt, config.llm.retry);
@@ -146,7 +155,7 @@ async function runAgent(workspaceDir: string): Promise<void> {
 
   llmClient.retryCallback = onRetry;
 
-  // 加载 system prompt
+  // Load system prompt
   let systemPrompt: string;
   let systemPromptPath = Config.findConfigFile(config.agent.systemPromptPath);
   if (systemPromptPath && fs.existsSync(systemPromptPath)) {
@@ -158,8 +167,27 @@ async function runAgent(workspaceDir: string): Promise<void> {
     console.log("⚠️  System prompt not found, using default");
   }
 
-  // 创建 Agent 类
-  let agent = new Agent(llmClient, systemPrompt, config.agent.maxSteps);
+  // Create tool list (workspace-dependent)
+  const tools: Tool[] = [];
+  if (config.tools.enableFileTools) {
+    tools.push(new ReadTool(workspaceDir));
+    tools.push(new WriteTool(workspaceDir));
+    tools.push(new EditTool(workspaceDir));
+  }
+  if (config.tools.enableBash) {
+    tools.push(new BashTool());
+    tools.push(new BashOutputTool());
+    tools.push(new BashKillTool());
+  }
+
+  // Create Agent
+  let agent = new Agent(
+    llmClient,
+    systemPrompt,
+    tools,
+    config.agent.maxSteps,
+    workspaceDir
+  );
 
   printBanner();
   console.log(`Model: ${config.llm.model}`);
@@ -200,7 +228,7 @@ async function runAgent(workspaceDir: string): Promise<void> {
   };
   process.once("SIGINT", onSigint);
 
-  // 开启Agent主循环
+  // Start agent main loop
   try {
     while (true) {
       let raw: string;
@@ -261,7 +289,7 @@ async function runAgent(workspaceDir: string): Promise<void> {
           console.log("   Please try again or report this issue.\n");
         }
 
-        // 移除未完成的用户消息
+        // Remove unfinished user message
         agent.messages.pop();
         continue;
       }
@@ -273,7 +301,7 @@ async function runAgent(workspaceDir: string): Promise<void> {
     rl.close();
     if (!interrupted) printStats(agent, sessionStartMs);
   }
-  // TODO: 清理 MCP 连接
+  // TODO: Clean up MCP connections
 }
 
 function resolveWorkspace(args: { workspace: string | undefined }): string {
@@ -285,7 +313,7 @@ function resolveWorkspace(args: { workspace: string | undefined }): string {
     workspaceDir = process.cwd();
   }
 
-  // 确保 workspace 目录存在
+  // Ensure the workspace directory exists
   if (!fs.existsSync(workspaceDir)) {
     fs.mkdirSync(workspaceDir, { recursive: true });
   }

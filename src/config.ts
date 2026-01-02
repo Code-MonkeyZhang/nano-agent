@@ -9,7 +9,7 @@ import * as path from "node:path";
 import * as yaml from "yaml";
 import { fileURLToPath } from "node:url";
 
-// ============ 配置类型 ============
+// ============ Configuration Types ============
 
 /** Retry configuration Default Value*/
 export class RetryConfig {
@@ -20,7 +20,7 @@ export class RetryConfig {
   exponentialBase: number = 2.0;
 
   constructor(data: Partial<RetryConfig> = {}) {
-    // 手动逐个检查，如果 data 中有值且不是 undefined，就覆盖
+    // Manually check each field: if it's present (and not undefined), override the default.
     if (data.enabled !== undefined) this.enabled = data.enabled;
     if (data.maxRetries !== undefined) this.maxRetries = data.maxRetries;
     if (data.initialDelay !== undefined) this.initialDelay = data.initialDelay;
@@ -192,8 +192,8 @@ export class Config {
    * Find configuration file with priority order
    *
    * Search for config file in the following order of priority:
-   * 1) mini_agent/config/{filename} in current directory (development mode)
-   * 2) ~/.mini-agent/config/{filename} in user home directory
+   * 1) ./config/{filename} in current directory (development mode)
+   * 2) ~/.mini-agent-ts/config/{filename} in user home directory
    * 3) {package}/config/{filename} in package installation directory
    *
    * @param filename Configuration file name (e.g., "config.yaml", "mcp.json", "system_prompt.md")
@@ -208,7 +208,7 @@ export class Config {
 
     // Priority 2: User config directory
     const homeDir = process.env["HOME"] || process.env["USERPROFILE"] || "";
-    const userConfig = path.join(homeDir, ".mini-agent", "config", filename);
+    const userConfig = path.join(homeDir, ".mini-agent-ts", "config", filename);
     if (fs.existsSync(userConfig)) {
       return userConfig;
     }

@@ -1,12 +1,11 @@
 import {
   LLMProvider,
-  type LLMResponse,
   type LLMStreamChunk,
   type Message,
 } from "../schema/schema.js";
 import { LLMClientBase } from "./base.js";
 import { OpenAIClient } from "./openai_client.js";
-// 假设你有 AnthropicClient
+// If you have an AnthropicClient implementation:
 // import { AnthropicClient } from "./anthropic_client.js";
 import { RetryConfig } from "../config.js";
 
@@ -17,7 +16,7 @@ export class LLMClient {
   public model: string;
   public retryConfig: RetryConfig;
 
-  // 内部 client 实例，设为私有以保持封装性
+  // Internal client instance; kept private for encapsulation.
   private _client: LLMClientBase;
 
   constructor(
@@ -36,7 +35,8 @@ export class LLMClient {
 
     switch (provider) {
       case LLMProvider.ANTHROPIC:
-        fullApiBase = `${apiBase.replace(/\/+$/, "")}/anthropic`;
+        // Treat `api_base` as a fully-qualified base URL (do not auto-append suffixes).
+        fullApiBase = apiBase.replace(/\/+$/, "");
         this._client = new OpenAIClient(
           apiKey,
           fullApiBase,
@@ -46,7 +46,8 @@ export class LLMClient {
         break;
 
       case LLMProvider.OPENAI:
-        fullApiBase = `${apiBase.replace(/\/+$/, "")}/v1`;
+        // Treat `api_base` as a fully-qualified base URL (do not auto-append suffixes).
+        fullApiBase = apiBase.replace(/\/+$/, "");
         this._client = new OpenAIClient(
           apiKey,
           fullApiBase,
@@ -67,13 +68,6 @@ export class LLMClient {
    */
   set retryCallback(value: (error: unknown, attempt: number) => void) {
     this._client.retryCallback = value;
-  }
-
-  async generate(
-    messages: Message[],
-    tools?: any[] | null
-  ): Promise<LLMResponse> {
-    return await this._client.generate(messages, tools);
   }
 
   async *generateStream(
