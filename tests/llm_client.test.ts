@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import * as fs from "node:fs";
 import { Config } from "../src/config.js";
 import { LLMClient } from "../src/llm/llm_wrapper.js";
 import type { Message } from "../src/schema/schema.js";
@@ -10,28 +11,30 @@ import type { Message } from "../src/schema/schema.js";
  * Before running, ensure `Mini-Agent-TS/config/config.yaml` is configured correctly
  * (when running from `Mini-Agent-TS/`, the path is `./config/config.yaml`) and that
  * your environment allows network access.
- *
- * Enable with: MINI_AGENT_TS_RUN_LLM_INTEGRATION_TESTS=1
  */
-const maybeDescribe =
-  process.env["MINI_AGENT_TS_RUN_LLM_INTEGRATION_TESTS"] === "1"
-    ? describe
-    : describe.skip;
+const configPath = Config.findConfigFile("config.yaml");
+let config: Config | null = null;
+let skipReason: string | null = null;
+
+if (!configPath) {
+  skipReason = "config.yaml not found";
+} else if (!fs.existsSync(configPath)) {
+  skipReason = `config.yaml not found at resolved path: ${configPath}`;
+} else {
+  try {
+    config = Config.fromYaml(configPath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    skipReason = `config.yaml exists but is not usable: ${message}`;
+  }
+}
+
+const maybeDescribe = skipReason ? describe.skip : describe;
 
 maybeDescribe("LLM API Integration (stream)", () => {
   it("should stream a response from the configured LLM API", async () => {
-    let config: Config;
-    try {
-      config = Config.load();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(
-        [
-          "LLM integration test is enabled, but config could not be loaded.",
-          message,
-          "Expected: ./config/config.yaml (api_key + provider + model).",
-        ].join("\n")
-      );
+    if (!config || !configPath) {
+      throw new Error(`Unexpected: test ran but was gated off: ${skipReason}`);
     }
 
     const llmClient = new LLMClient(

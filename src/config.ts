@@ -50,12 +50,10 @@ export class LLMConfig {
 /** Agent configuration. */
 export class AgentConfig {
   maxSteps: number = 50;
-  workspaceDir: string = "./workspace";
   systemPromptPath: string = "system_prompt.md";
 
   constructor(data: Partial<AgentConfig> = {}) {
     if (data.maxSteps !== undefined) this.maxSteps = data.maxSteps;
-    if (data.workspaceDir !== undefined) this.workspaceDir = data.workspaceDir;
     if (data.systemPromptPath !== undefined)
       this.systemPromptPath = data.systemPromptPath;
   }
@@ -158,7 +156,6 @@ export class Config {
     // Parse Agent configuration
     const agentConfig = new AgentConfig({
       maxSteps: data["max_steps"] as number | undefined,
-      workspaceDir: data["workspace_dir"] as string | undefined,
       systemPromptPath: data["system_prompt_path"] as string | undefined,
     });
 
