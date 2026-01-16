@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import * as fs from "node:fs";
 import { Logger } from "./util/logger.js";
-import { LLMClient } from "./llm/llm_wrapper.js";
+import { LLMClient } from "./llm-client/llm-client.js";
 import type { Message, ToolCall } from "./schema/index.js";
 import type { Tool, ToolResult } from "./tools/index.js";
 

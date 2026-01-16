@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
-import { ReadTool, WriteTool, EditTool } from "../src/tools/file_tools.js";
+import { ReadTool, WriteTool, EditTool } from "../src/tools/file-tools.js";
 
 describe("File tools", () => {
   it("should read files with line numbers", async () => {

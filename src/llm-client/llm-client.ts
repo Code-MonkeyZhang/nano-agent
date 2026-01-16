@@ -4,9 +4,9 @@ import {
   type Message,
 } from "../schema/schema.js";
 import { LLMClientBase } from "./base.js";
-import { OpenAIClient } from "./openai_client.js";
+import { OpenAIClient } from "./openai-client.js";
 // If you have an AnthropicClient implementation:
-// import { AnthropicClient } from "./anthropic_client.js";
+// import { AnthropicClient } from "./anthropic-client.js";
 import { RetryConfig } from "../config.js";
 
 export class LLMClient {

@@ -2,10 +2,9 @@ import { Command } from "commander";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { CompleterResult } from "node:readline";
 import { createInterface } from "node:readline/promises";
 import { Config } from "./config.js";
-import { LLMClient } from "./llm/llm_wrapper.js";
+import { LLMClient } from "./llm-client/llm-client.js";
 import { calculateDelay, RetryExhaustedError } from "./retry.js";
 import {
   BashKillTool,
@@ -85,46 +84,6 @@ Examples:
   };
 }
 
-function printHelp(): void {
-  console.log(`
-Available Commands:
-  /help      - Show this help message
-  /clear     - Clear session history (keep system prompt)
-  /history   - Show current session message count
-  /stats     - Show session statistics
-  /exit      - Exit program (also: exit, quit, q)
-`);
-}
-
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return `${hours.toString().padStart(2, "0")}:${minutes
-    .toString()
-    .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-}
-
-function printStats(agent: Agent, sessionStartMs: number): void {
-  const duration = formatDuration(Date.now() - sessionStartMs);
-  const total = agent.messages.length;
-  const userMsgs = agent.messages.filter((m) => m.role === "user").length;
-  const assistantMsgs = agent.messages.filter(
-    (m) => m.role === "assistant"
-  ).length;
-  const toolMsgs = agent.messages.filter((m) => m.role === "tool").length;
-
-  console.log("\nSession Statistics:");
-  console.log("─".repeat(40));
-  console.log(`  Session Duration: ${duration}`);
-  console.log(`  Total Messages: ${total}`);
-  console.log(`    - User Messages: ${userMsgs}`);
-  console.log(`    - Assistant Replies: ${assistantMsgs}`);
-  console.log(`    - Tool Calls: ${toolMsgs}`);
-  console.log("─".repeat(40) + "\n");
-}
-
 function resolveWorkspace(args: { workspace: string | undefined }): string {
   let workspaceDir: string;
 
@@ -145,8 +104,6 @@ function resolveWorkspace(args: { workspace: string | undefined }): string {
 // ============ Main Startup Logic ============
 
 async function runAgent(workspaceDir: string): Promise<void> {
-  const sessionStartMs = Date.now();
-
   // Load Workspace dir
   const configPath = Config.getDefaultConfigPath();
   const config = Config.fromYaml(configPath);
@@ -154,8 +111,9 @@ async function runAgent(workspaceDir: string): Promise<void> {
   console.log(`Workspace: ${workspaceDir}`);
 
   printBanner();
-  console.log(`Model: ${config.llm.model}, Provider: ${config.llm.provider},`);
-  console.log(`Type /help for help, /exit to quit\n`);
+  console.log(`Model: ${config.llm.model}, Provider: ${config.llm.provider}`);
+  console.log(`Base URL: ${config.llm.apiBase}`);
+  console.log(`Type 'exit' to quit\n`);
 
   const onRetry = (error: unknown, attempt: number) => {
     console.log(`\n⚠️  LLM call failed (attempt ${attempt}): ${String(error)}`);
@@ -191,6 +149,7 @@ async function runAgent(workspaceDir: string): Promise<void> {
   let systemPromptPath = Config.findConfigFile(config.agent.systemPromptPath);
   if (systemPromptPath && fs.existsSync(systemPromptPath)) {
     systemPrompt = fs.readFileSync(systemPromptPath, "utf-8");
+    console.log(`✅ Loaded system prompt (from: ${systemPromptPath})`);
   } else {
     systemPrompt =
       "You are Mini-Agent, an intelligent assistant powered by MiniMax M2 that can help users complete various tasks.";
@@ -247,28 +206,12 @@ async function runAgent(workspaceDir: string): Promise<void> {
     workspaceDir
   );
 
-  const commands: string[] = [
-    "/help",
-    "/clear",
-    "/history",
-    "/stats",
-    "/exit",
-    "/quit",
-    "/q",
-  ];
-  const commandSet = new Set(commands);
-
   const rl = createInterface({
     input: process.stdin,
     output: process.stdout,
     terminal: true,
     historySize: 1000,
     removeHistoryDuplicates: true,
-    completer: (line: string) => {
-      if (!line.startsWith("/")) return [[], line] as CompleterResult;
-      const hits = commands.filter((c) => c.startsWith(line));
-      return [hits.length ? hits : commands, line] as CompleterResult;
-    },
   });
   let interrupted = false;
   const onSigint = (): void => {
@@ -293,35 +236,6 @@ async function runAgent(workspaceDir: string): Promise<void> {
 
       const userInput = raw.trim();
       if (!userInput) continue;
-
-      if (userInput.startsWith("/")) {
-        const cmd = userInput.toLowerCase();
-        if (cmd === "/help") {
-          printHelp();
-          continue;
-        }
-        if (cmd === "/clear") {
-          const removed = agent.clearHistoryKeepSystem();
-          console.log(`✅ Cleared ${removed} messages, starting new session\n`);
-          continue;
-        }
-        if (cmd === "/history") {
-          console.log(
-            `\nCurrent session message count: ${agent.messages.length}\n`
-          );
-          continue;
-        }
-        if (cmd === "/stats") {
-          printStats(agent, sessionStartMs);
-          continue;
-        }
-        if (cmd === "/exit" || cmd === "/quit" || cmd === "/q") break;
-
-        if (commandSet.has(cmd)) break;
-        console.log(`❌ Unknown command: ${userInput}`);
-        console.log(`Type /help to see available commands\n`);
-        continue;
-      }
 
       if (userInput === "exit" || userInput === "quit" || userInput === "q")
         break;
@@ -357,7 +271,6 @@ async function runAgent(workspaceDir: string): Promise<void> {
     } catch (error) {
       console.log(`⚠️  Error during MCP cleanup: ${String(error)}`);
     }
-    if (!interrupted) printStats(agent, sessionStartMs);
   }
 }
 

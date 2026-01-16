@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "node:fs";
 import { Config } from "../src/config.js";
-import { LLMClient } from "../src/llm/llm_wrapper.js";
+import { LLMClient } from "../src/llm-client/llm-client.js";
 import type { Message } from "../src/schema/schema.js";
 
 /**

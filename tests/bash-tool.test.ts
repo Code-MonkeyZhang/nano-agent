@@ -3,7 +3,7 @@ import {
   BashTool,
   BashOutputTool,
   BashKillTool,
-} from "../src/tools/bash_tool.js";
+} from "../src/tools/bash-tool.js";
 
 const describeIf = process.platform === "win32" ? describe.skip : describe;
 

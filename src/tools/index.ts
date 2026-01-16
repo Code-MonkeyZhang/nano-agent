@@ -10,8 +10,8 @@ export {
   toOpenAISchema,
 } from "./base.js";
 
-export { ReadTool, WriteTool, EditTool } from "./file_tools.js";
-export { BashTool, BashOutputTool, BashKillTool } from "./bash_tool.js";
+export { ReadTool, WriteTool, EditTool } from "./file-tools.js";
+export { BashTool, BashOutputTool, BashKillTool } from "./bash-tool.js";
 export {
   type MCPTimeoutConfig,
   MCPTool,
