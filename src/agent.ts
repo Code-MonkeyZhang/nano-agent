@@ -1,12 +1,10 @@
 import * as path from "node:path";
 import * as fs from "node:fs";
 import { Logger } from "./util/logger.js";
+import { Colors, drawStepHeader } from "./util/terminal.js";
 import { LLMClient } from "./llm-client/llm-client.js";
 import type { Message, ToolCall } from "./schema/index.js";
 import type { Tool, ToolResult } from "./tools/index.js";
-
-
-const SEPARATOR_WIDTH = 60;
 
 
 function buildSystemPrompt(basePrompt: string, workspaceDir: string): string {
@@ -103,8 +101,11 @@ export class Agent {
 
   async run(): Promise<string> {
     for (let step = 0; step < this.maxSteps; step++) {
+      // Step 之前：1 个空行
       console.log();
-      console.log("🤖 Assistant:");
+
+      // Step Header
+      console.log(drawStepHeader(step + 1, this.maxSteps));
 
       let fullContent = "";
       let fullThinking = "";
@@ -118,8 +119,10 @@ export class Agent {
       )) {
         if (chunk.thinking) {
           if (!isThinkingPrinted) {
-            console.log("💭 Thinking:");
-            console.log("─".repeat(SEPARATOR_WIDTH));
+            console.log();
+            console.log(`${Colors.DIM}─${"─".repeat(60)}${Colors.RESET}`);
+            console.log();
+            console.log(`${Colors.BOLD}${Colors.BRIGHT_MAGENTA}🧠 Thinking:${Colors.RESET}`);
             isThinkingPrinted = true;
           }
           process.stdout.write(chunk.thinking);
@@ -129,8 +132,14 @@ export class Agent {
         if (chunk.content) {
           if (isThinkingPrinted && fullContent === "") {
             console.log();
-            console.log("─".repeat(SEPARATOR_WIDTH));
             console.log();
+            console.log(`${Colors.DIM}─${"─".repeat(60)}${Colors.RESET}`);
+            console.log();
+            console.log(`${Colors.BOLD}${Colors.BRIGHT_BLUE}📝 Response:${Colors.RESET}`);
+          } else if (!isThinkingPrinted && fullContent === "") {
+            // 只有 Response，无 Thinking：1 个空行 + Response 标题
+            console.log();
+            console.log(`${Colors.BOLD}${Colors.BRIGHT_BLUE}📝 Response:${Colors.RESET}`);
           }
           process.stdout.write(chunk.content);
           fullContent += chunk.content;
@@ -141,7 +150,9 @@ export class Agent {
         }
       }
 
-      console.log();
+      if (!toolCalls || toolCalls.length === 0) {
+        console.log();
+      }
 
       Logger.log("CHAT", "🤖 Assistant:", {
         content: fullContent,
@@ -165,14 +176,36 @@ export class Agent {
         const functionName = toolCall.function.name;
         const args = toolCall.function.arguments || {};
 
-        console.log(`\n🔧 使用工具: ${functionName}`);
+        // Tool 标题
+        console.log(`\n${Colors.BOLD}${Colors.BRIGHT_YELLOW}🔧 Tool: ${functionName}${Colors.RESET}`);
+
+        // Arguments
+        console.log(`${Colors.DIM}   Arguments:${Colors.RESET}`);
+        const truncatedArgs: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(args)) {
+          const valueStr = String(value);
+          if (valueStr.length > 200) {
+            truncatedArgs[key] = valueStr.slice(0, 200) + "...";
+          } else {
+            truncatedArgs[key] = value;
+          }
+        }
+        const argsJson = JSON.stringify(truncatedArgs, null, 2);
+        for (const line of argsJson.split("\n")) {
+          console.log(`   ${Colors.DIM}${line}${Colors.RESET}`);
+        }
 
         const result = await this.executeTool(functionName, args);
 
         if (result.success) {
-          console.log(`✅ Tool use success`);
+          let resultText = result.content;
+          const MAX_LENGTH = 300;
+          if (resultText.length > MAX_LENGTH) {
+            resultText = resultText.slice(0, MAX_LENGTH) + `${Colors.DIM}...${Colors.RESET}`;
+          }
+          console.log(`${Colors.BRIGHT_GREEN}✓${Colors.RESET} ${Colors.BOLD}${Colors.BRIGHT_GREEN}Success:${Colors.RESET} ${resultText}\n`);
         } else {
-          console.log(`✗ Error: ${result.error ?? "Unknown error"}`);
+          console.log(`${Colors.BRIGHT_RED}✗${Colors.RESET} ${Colors.BOLD}${Colors.BRIGHT_RED}Error:${Colors.RESET} ${Colors.RED}${result.error ?? "Unknown error"}${Colors.RESET}\n`);
         }
 
         this.messages.push({
