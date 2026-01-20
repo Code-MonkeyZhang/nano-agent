@@ -105,7 +105,11 @@ function resolveWorkspace(args: { workspace: string | undefined }): string {
 
 async function runAgent(workspaceDir: string): Promise<void> {
   // Load Workspace dir
-  const configPath = Config.getDefaultConfigPath();
+  const configPath = Config.findConfigFile("config.yaml");
+  if (!configPath) {
+    console.error("❌ Configuration file not found. Please run setup.");
+    process.exit(1);
+  }
   const config = Config.fromYaml(configPath);
   console.log(`Config loaded from: ${configPath}`);
   console.log(`Workspace: ${workspaceDir}`);

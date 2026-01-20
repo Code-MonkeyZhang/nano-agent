@@ -5,11 +5,9 @@ import { LLMClient } from "./llm-client/llm-client.js";
 import type { Message, ToolCall } from "./schema/index.js";
 import type { Tool, ToolResult } from "./tools/index.js";
 
-// ============ Constants ============
 
 const SEPARATOR_WIDTH = 60;
 
-// ============ Helpers ============
 
 function buildSystemPrompt(basePrompt: string, workspaceDir: string): string {
   if (basePrompt.includes("Current Workspace")) {
@@ -25,7 +23,6 @@ All relative paths will be resolved relative to this directory.`
   );
 }
 
-// ============ Agent ============
 
 export class Agent {
   public llmClient: LLMClient;

@@ -1,136 +1,140 @@
 /**
  * Configuration management module
  *
- * Provides unified configuration loading and management functionality
+ * Provides unified configuration loading and management functionality using Zod for validation and type safety.
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as yaml from "yaml";
 import { fileURLToPath } from "node:url";
+import { z } from "zod";
 
-// ============ Configuration Types ============
+// ============ Defaults ============
 
-/** Retry configuration defaults. */
-export class RetryConfig {
-  enabled: boolean = true;
-  maxRetries: number = 3;
-  initialDelay: number = 1.0;
-  maxDelay: number = 60.0;
-  exponentialBase: number = 2.0;
-
-  constructor(data: Partial<RetryConfig> = {}) {
-    // Manually check each field: if it's present (and not undefined), override the default.
-    if (data.enabled !== undefined) this.enabled = data.enabled;
-    if (data.maxRetries !== undefined) this.maxRetries = data.maxRetries;
-    if (data.initialDelay !== undefined) this.initialDelay = data.initialDelay;
-    if (data.maxDelay !== undefined) this.maxDelay = data.maxDelay;
-    if (data.exponentialBase !== undefined)
-      this.exponentialBase = data.exponentialBase;
+const DEFAULTS = {
+  RETRY: {
+    enabled: true,
+    maxRetries: 3,
+    initialDelay: 1.0,
+    maxDelay: 60.0,
+    exponentialBase: 2.0,
+  },
+  LLM: {
+    apiBase: "https://api.minimax.io",
+    model: "MiniMax-M2",
+    provider: "anthropic" as const,
+  },
+  AGENT: {
+    maxSteps: 50,
+    systemPromptPath: "system_prompt.md",
+  },
+  MCP: {
+    connectTimeout: 10.0,
+    executeTimeout: 60.0,
+    sseReadTimeout: 120.0,
+  },
+  TOOLS: {
+    enableFileTools: true,
+    enableBash: true,
+    enableNote: true,
+    enableSkills: true,
+    skillsDir: "./skills",
+    enableMcp: true,
+    mcpConfigPath: "mcp.json",
   }
-}
+};
 
-/** LLM configuration. */
-export class LLMConfig {
-  apiKey: string;
-  apiBase: string = "https://api.minimax.io";
-  model: string = "MiniMax-M2";
-  provider: "anthropic" | "openai" = "anthropic";
-  retry: RetryConfig = new RetryConfig();
+// ============ Schemas ============
 
-  constructor(data: { apiKey: string } & Partial<Omit<LLMConfig, "apiKey">>) {
-    this.apiKey = data.apiKey;
-    if (data.apiBase !== undefined) this.apiBase = data.apiBase;
-    if (data.model !== undefined) this.model = data.model;
-    if (data.provider !== undefined) this.provider = data.provider;
-    if (data.retry !== undefined) this.retry = data.retry;
-  }
-}
+// Retry Schema
+const RetrySchema = z.object({
+  enabled: z.boolean().default(DEFAULTS.RETRY.enabled),
+  maxRetries: z.number().default(DEFAULTS.RETRY.maxRetries),
+  initialDelay: z.number().default(DEFAULTS.RETRY.initialDelay),
+  maxDelay: z.number().default(DEFAULTS.RETRY.maxDelay),
+  exponentialBase: z.number().default(DEFAULTS.RETRY.exponentialBase),
+});
 
-/** Agent configuration. */
-export class AgentConfig {
-  maxSteps: number = 50;
-  systemPromptPath: string = "system_prompt.md";
+// MCP Schema
+const MCPSchema = z.object({
+  connectTimeout: z.number().default(DEFAULTS.MCP.connectTimeout),
+  executeTimeout: z.number().default(DEFAULTS.MCP.executeTimeout),
+  sseReadTimeout: z.number().default(DEFAULTS.MCP.sseReadTimeout),
+});
 
-  constructor(data: Partial<AgentConfig> = {}) {
-    if (data.maxSteps !== undefined) this.maxSteps = data.maxSteps;
-    if (data.systemPromptPath !== undefined)
-      this.systemPromptPath = data.systemPromptPath;
-  }
-}
+// Tools Schema
+const ToolsSchema = z.object({
+  enableFileTools: z.boolean().default(DEFAULTS.TOOLS.enableFileTools),
+  enableBash: z.boolean().default(DEFAULTS.TOOLS.enableBash),
+  enableNote: z.boolean().default(DEFAULTS.TOOLS.enableNote),
+  enableSkills: z.boolean().default(DEFAULTS.TOOLS.enableSkills),
+  skillsDir: z.string().default(DEFAULTS.TOOLS.skillsDir),
+  enableMcp: z.boolean().default(DEFAULTS.TOOLS.enableMcp),
+  mcpConfigPath: z.string().default(DEFAULTS.TOOLS.mcpConfigPath),
+  mcp: MCPSchema,
+});
 
-/** MCP (Model Context Protocol) timeout configuration. */
-export class MCPConfig {
-  connectTimeout: number = 10.0;
-  executeTimeout: number = 60.0;
-  sseReadTimeout: number = 120.0;
+// Main Config Schema
+const ConfigSchema = z.object({
+  apiKey: z.string().min(1, "Please configure a valid API Key"),
+  apiBase: z.string().default(DEFAULTS.LLM.apiBase),
+  model: z.string().default(DEFAULTS.LLM.model),
+  provider: z.enum(["anthropic", "openai"]).default(DEFAULTS.LLM.provider),
 
-  constructor(data: Partial<MCPConfig> = {}) {
-    if (data.connectTimeout !== undefined)
-      this.connectTimeout = data.connectTimeout;
-    if (data.executeTimeout !== undefined)
-      this.executeTimeout = data.executeTimeout;
-    if (data.sseReadTimeout !== undefined)
-      this.sseReadTimeout = data.sseReadTimeout;
-  }
-}
+  retry: RetrySchema,
 
-/** Tools configuration. */
-export class ToolsConfig {
-  enableFileTools: boolean = true;
-  enableBash: boolean = true;
-  enableNote: boolean = true;
-  enableSkills: boolean = true;
-  skillsDir: string = "./skills";
-  enableMcp: boolean = true;
-  mcpConfigPath: string = "mcp.json";
-  mcp: MCPConfig = new MCPConfig();
+  maxSteps: z.number().default(DEFAULTS.AGENT.maxSteps),
+  systemPromptPath: z.string().default(DEFAULTS.AGENT.systemPromptPath),
 
-  constructor(data: Partial<ToolsConfig> = {}) {
-    if (data.enableFileTools !== undefined)
-      this.enableFileTools = data.enableFileTools;
-    if (data.enableBash !== undefined) this.enableBash = data.enableBash;
-    if (data.enableNote !== undefined) this.enableNote = data.enableNote;
-    if (data.enableSkills !== undefined) this.enableSkills = data.enableSkills;
-    if (data.skillsDir !== undefined) this.skillsDir = data.skillsDir;
-    if (data.enableMcp !== undefined) this.enableMcp = data.enableMcp;
-    if (data.mcpConfigPath !== undefined)
-      this.mcpConfigPath = data.mcpConfigPath;
-    if (data.mcp !== undefined) this.mcp = data.mcp;
-  }
-}
+  tools: ToolsSchema,
+}).transform(data => ({
+  llm: {
+    apiKey: data.apiKey,
+    apiBase: data.apiBase,
+    model: data.model,
+    provider: data.provider,
+    retry: data.retry,
+  },
+  agent: {
+    maxSteps: data.maxSteps,
+    systemPromptPath: data.systemPromptPath,
+  },
+  tools: data.tools
+}));
 
-/** Main configuration class. */
+// ============ Types ============
+
+export type RetryConfig = z.infer<typeof RetrySchema>; // 创建一个名为 RetryConfig 的类型，它包含了 RetrySchema 中定义的所有字段
+export type MCPConfig = z.infer<typeof MCPSchema>;
+export type ToolsConfig = z.infer<typeof ToolsSchema>;
+export type LLMConfig = z.infer<typeof ConfigSchema>['llm'];
+export type AgentConfig = z.infer<typeof ConfigSchema>['agent'];
+
+// ============ Configuration Class ============
+
 export class Config {
   llm: LLMConfig;
   agent: AgentConfig;
   tools: ToolsConfig;
 
-  constructor(llm: LLMConfig, agent: AgentConfig, tools: ToolsConfig) {
-    this.llm = llm;
-    this.agent = agent;
-    this.tools = tools;
+  constructor(data: z.infer<typeof ConfigSchema>) {
+    this.llm = data.llm;
+    this.agent = data.agent;
+    this.tools = data.tools;
+  }
+
+
+  static createDefaultRetryConfig(): RetryConfig {
+    return RetrySchema.parse({});
   }
 
   /**
-   * Load configuration from the default search path.
-   */
-  static load(): Config {
-    const configPath = Config.getDefaultConfigPath();
-    if (!fs.existsSync(configPath)) {
-      throw new Error(
-        "Configuration file not found. Run scripts/setup-config.sh or place config.yaml in mini_agent/config/."
-      );
-    }
-    return Config.fromYaml(configPath);
-  }
-
-  /**
-   * Load configuration from YAML file
+   * Load and parse config from YAML file.
    *
-   * @param configPath Configuration file path
-   * @returns Config instance
-   * @throws Error if configuration file does not exist or is invalid
+   * @param configPath - The absolute path to the YAML configuration file
+   * @returns A validated Config instance
+   * @throws Error if file doesn't exist, is empty, or has invalid schema
    */
   static fromYaml(configPath: string): Config {
     if (!fs.existsSync(configPath)) {
@@ -138,106 +142,41 @@ export class Config {
     }
 
     const content = fs.readFileSync(configPath, "utf8");
-    const data = yaml.parse(content) as Record<string, unknown>;
-
-    if (!data) {
+    if (!content || !content.trim()) {
       throw new Error("Configuration file is empty");
     }
 
-    // Parse LLM configuration
-    if (!data["api_key"]) {
-      throw new Error("Configuration file missing required field: api_key");
-    }
+    const rawData = yaml.parse(content);
+    const parsedData = ConfigSchema.parse(rawData);
 
-    if (!data["api_key"] || data["api_key"] === "YOUR_API_KEY_HERE") {
-      throw new Error("Please configure a valid API Key");
-    }
-
-    // Parse retry configuration
-    const retryData = (data["retry"] as Record<string, unknown>) || {};
-    const retryConfig = new RetryConfig({
-      enabled: retryData["enabled"] as boolean | undefined,
-      maxRetries: retryData["max_retries"] as number | undefined,
-      initialDelay: retryData["initial_delay"] as number | undefined,
-      maxDelay: retryData["max_delay"] as number | undefined,
-      exponentialBase: retryData["exponential_base"] as number | undefined,
-    });
-
-    const llmConfig = new LLMConfig({
-      apiKey: data["api_key"] as string,
-      apiBase: data["api_base"] as string | undefined,
-      model: data["model"] as string | undefined,
-      provider: data["provider"] as "anthropic" | "openai" | undefined,
-      retry: retryConfig,
-    });
-
-    // Parse Agent configuration
-    const agentConfig = new AgentConfig({
-      maxSteps: data["max_steps"] as number | undefined,
-      systemPromptPath: data["system_prompt_path"] as string | undefined,
-    });
-
-    // Parse tools configuration
-    const toolsData = (data["tools"] as Record<string, unknown>) || {};
-    const mcpData = (toolsData["mcp"] as Record<string, unknown>) || {};
-    const mcpConfig = new MCPConfig({
-      connectTimeout: mcpData["connect_timeout"] as number | undefined,
-      executeTimeout: mcpData["execute_timeout"] as number | undefined,
-      sseReadTimeout: mcpData["sse_read_timeout"] as number | undefined,
-    });
-
-    const toolsConfig = new ToolsConfig({
-      enableFileTools: toolsData["enable_file_tools"] as boolean | undefined,
-      enableBash: toolsData["enable_bash"] as boolean | undefined,
-      enableNote: toolsData["enable_note"] as boolean | undefined,
-      enableSkills: toolsData["enable_skills"] as boolean | undefined,
-      skillsDir: toolsData["skills_dir"] as string | undefined,
-      enableMcp: toolsData["enable_mcp"] as boolean | undefined,
-      mcpConfigPath: toolsData["mcp_config_path"] as string | undefined,
-      mcp: mcpConfig,
-    });
-
-    return new Config(llmConfig, agentConfig, toolsConfig);
+    return new Config(parsedData);
   }
 
   /**
-   * Get the package installation directory
+   * priority search for config file .
    *
-   * @returns Path to the mini_agent package directory
-   */
-  static getPackageDir(): string {
-    // Get the directory where this config.ts file is located
-    const here = path.dirname(fileURLToPath(import.meta.url));
-    return path.resolve(here, "..");
-  }
-
-  /**
-   * Find configuration file with priority order
+   * Search order:
+   * 1. Current working directory: `./config/{filename}`
+   * 2. User home directory: `~/.mini-agent-ts/config/{filename}`
+   * 3. Package directory: `{package_root}/config/{filename}`
    *
-   * Search for config file in the following order of priority:
-   * 1) ./config/{filename} in current directory (development mode)
-   * 2) ~/.mini-agent-ts/config/{filename} in user home directory
-   * 3) {package}/config/{filename} in package installation directory
-   *
-   * @param filename Configuration file name (e.g., "config.yaml", "mcp.json", "system_prompt.md")
-   * @returns Path to found config file, or null if not found
+   * @param filename - The name of the file to find (e.g., "config.yaml")
+   * @returns The absolute path to the file if found, otherwise null
    */
   static findConfigFile(filename: string): string | null {
-    // Priority 1: Development mode - current directory's config/ subdirectory
     const devConfig = path.join(process.cwd(), "config", filename);
     if (fs.existsSync(devConfig)) {
       return devConfig;
     }
 
-    // Priority 2: User config directory
     const homeDir = process.env["HOME"] || process.env["USERPROFILE"] || "";
     const userConfig = path.join(homeDir, ".mini-agent-ts", "config", filename);
     if (fs.existsSync(userConfig)) {
       return userConfig;
     }
 
-    // Priority 3: Package installation directory's config/ subdirectory
-    const packageConfig = path.join(Config.getPackageDir(), "config", filename);
+    const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+    const packageConfig = path.join(packageRoot, "config", filename);
     if (fs.existsSync(packageConfig)) {
       return packageConfig;
     }
@@ -245,17 +184,4 @@ export class Config {
     return null;
   }
 
-  /**
-   * Get the default config file path with priority search
-   *
-   * @returns Path to config.yaml (prioritizes: dev config/ > user config/ > package config/)
-   */
-  static getDefaultConfigPath(): string {
-    const configPath = Config.findConfigFile("config.yaml");
-    if (configPath) {
-      return configPath;
-    }
-    // Fallback to package config directory for error message purposes
-    return path.join(Config.getPackageDir(), "config", "config.yaml");
-  }
 }

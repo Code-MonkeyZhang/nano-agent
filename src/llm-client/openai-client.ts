@@ -3,7 +3,7 @@ import type { Message, LLMStreamChunk, ToolCall } from "../schema/index.js";
 import type { Tool } from "../tools/index.js";
 import { toOpenAISchema } from "../tools/index.js";
 import { LLMClientBase } from "./base.js";
-import { RetryConfig } from "../config.js";
+import type { RetryConfig } from "../config.js";
 import { asyncRetry } from "../retry.js";
 import { Logger } from "../util/logger.js";
 

@@ -7,7 +7,7 @@ import { LLMClientBase } from "./base.js";
 import { OpenAIClient } from "./openai-client.js";
 // If you have an AnthropicClient implementation:
 // import { AnthropicClient } from "./anthropic-client.js";
-import { RetryConfig } from "../config.js";
+import type { RetryConfig } from "../config.js";
 
 export class LLMClient {
   public apiKey: string;

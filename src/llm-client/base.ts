@@ -1,5 +1,5 @@
 import type { Message, LLMStreamChunk } from "../schema/index.js";
-import { RetryConfig } from "../config.js";
+import { Config, type RetryConfig } from "../config.js";
 
 export abstract class LLMClientBase {
   public apiKey: string;
@@ -25,7 +25,7 @@ export abstract class LLMClientBase {
     this.apiKey = apiKey;
     this.apiBase = apiBase;
     this.model = model;
-    this.retryConfig = retryConfig ?? new RetryConfig();
+    this.retryConfig = retryConfig ?? Config.createDefaultRetryConfig();
     this.retryCallback = null;
   }
 

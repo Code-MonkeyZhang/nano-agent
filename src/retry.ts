@@ -1,6 +1,6 @@
-import { RetryConfig } from "./config.js";
+import type { RetryConfig } from "./config.js";
 
-export { RetryConfig };
+export type { RetryConfig };
 
 /**
  * Retry exhausted exception

@@ -9,7 +9,12 @@ describe("Retry Mechanism", () => {
 
   it("should return result immediately if function succeeds first time", async () => {
     const mockFn = vi.fn().mockResolvedValue("success");
-    const config = new RetryConfig({ maxRetries: 3 });
+    const config: RetryConfig = {
+      maxRetries: 3,
+      initialDelay: 1.0,
+      maxDelay: 60.0,
+      exponentialBase: 2.0
+    };
 
     const result = await asyncRetry(async () => mockFn(), config);
 
@@ -25,10 +30,12 @@ describe("Retry Mechanism", () => {
       .mockResolvedValue("success");
 
     // Use shorter delays to keep the test fast
-    const config = new RetryConfig({
+    const config: RetryConfig = {
       maxRetries: 3,
-      initialDelay: 0.01, // 10ms
-    });
+      initialDelay: 0.01,
+      maxDelay: 60.0,
+      exponentialBase: 2.0
+    };
 
     const result = await asyncRetry(async () => mockFn(), config);
 
@@ -40,10 +47,12 @@ describe("Retry Mechanism", () => {
     const error = new Error("persistent fail");
     const mockFn = vi.fn().mockRejectedValue(error);
 
-    const config = new RetryConfig({
+    const config: RetryConfig = {
       maxRetries: 2,
       initialDelay: 0.01,
-    });
+      maxDelay: 60.0,
+      exponentialBase: 2.0
+    };
 
     // Verify it throws the expected error type
     await expect(asyncRetry(async () => mockFn(), config)).rejects.toThrow(
@@ -58,10 +67,12 @@ describe("Retry Mechanism", () => {
     const mockFn = vi.fn().mockRejectedValue(new Error("fail"));
     const onRetry = vi.fn();
 
-    const config = new RetryConfig({
+    const config: RetryConfig = {
       maxRetries: 2,
       initialDelay: 0.01,
-    });
+      maxDelay: 60.0,
+      exponentialBase: 2.0
+    };
 
     try {
       await asyncRetry(async () => mockFn(), config, onRetry);
