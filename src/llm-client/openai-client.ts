@@ -18,8 +18,8 @@ export class OpenAIClient extends LLMClientBase {
   private client: OpenAI;
   constructor(
     apiKey: string,
-    apiBase: string = "https://api.minimaxi.com/v1",
-    model: string = "MiniMax-M2",
+    apiBase: string,
+    model: string,
     retryConfig: RetryConfig
   ) {
     super(apiKey, apiBase, model, retryConfig);
@@ -29,13 +29,19 @@ export class OpenAIClient extends LLMClientBase {
     });
   }
 
+  /**
+   * Converts internal message format to OpenAI's message format.
+   *
+   * @param messages - Array of internal Message objects
+   * @returns A tuple containing [systemPrompt, apiMessages]. 
+   * For OpenAI API, systemPrompt is always null since system messages are included in the apiMessages array
+   */
   protected override convertMessages(
     messages: Message[]
   ): [string | null, Record<string, any>[]] {
     let apiMessages = [];
 
     for (const msg of messages) {
-      // `msg` is a single message object
       if (msg.role === "system") {
         apiMessages.push({ role: "system", content: msg.content });
         continue;
@@ -70,11 +76,9 @@ export class OpenAIClient extends LLMClientBase {
         const toolMsg: Record<string, unknown> = {
           role: "tool",
           content: msg.content,
+          tool_call_id: msg.tool_call_id,
         };
 
-        if (msg.tool_call_id) {
-          toolMsg["tool_call_id"] = msg.tool_call_id;
-        }
         if (msg.name) {
           toolMsg["name"] = msg.name;
         }
@@ -155,6 +159,13 @@ export class OpenAIClient extends LLMClientBase {
     };
   }
 
+  /**
+   * Generates a streaming response from the OpenAI API.
+   *
+   * @param messages - Array of message objects representing the conversation history
+   * @param tools - Optional list of available tools for the LLM to call
+   * @returns An async generator yielding LLMStreamChunk objects with streaming response data
+   */
   public override async *generateStream(
     messages: Message[],
     tools?: any[] | null

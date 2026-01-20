@@ -10,3 +10,5 @@ https://modelcontextprotocol.io/docs/getting-started/intro
 Agent Skill doc:
 https://agentskills.io/home
 
+Silicon Flow:
+https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions

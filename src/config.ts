@@ -47,7 +47,6 @@ const DEFAULTS = {
 
 // ============ Schemas ============
 
-// Retry Schema
 const RetrySchema = z.object({
   enabled: z.boolean().default(DEFAULTS.RETRY.enabled),
   maxRetries: z.number().default(DEFAULTS.RETRY.maxRetries),
@@ -56,14 +55,12 @@ const RetrySchema = z.object({
   exponentialBase: z.number().default(DEFAULTS.RETRY.exponentialBase),
 });
 
-// MCP Schema
 const MCPSchema = z.object({
   connectTimeout: z.number().default(DEFAULTS.MCP.connectTimeout),
   executeTimeout: z.number().default(DEFAULTS.MCP.executeTimeout),
   sseReadTimeout: z.number().default(DEFAULTS.MCP.sseReadTimeout),
 });
 
-// Tools Schema
 const ToolsSchema = z.object({
   enableFileTools: z.boolean().default(DEFAULTS.TOOLS.enableFileTools),
   enableBash: z.boolean().default(DEFAULTS.TOOLS.enableBash),
@@ -75,7 +72,6 @@ const ToolsSchema = z.object({
   mcp: MCPSchema,
 });
 
-// Main Config Schema
 const ConfigSchema = z.object({
   apiKey: z.string().min(1, "Please configure a valid API Key"),
   apiBase: z.string().default(DEFAULTS.LLM.apiBase),
@@ -111,7 +107,7 @@ export type ToolsConfig = z.infer<typeof ToolsSchema>;
 export type LLMConfig = z.infer<typeof ConfigSchema>['llm'];
 export type AgentConfig = z.infer<typeof ConfigSchema>['agent'];
 
-// ============ Configuration Class ============
+// ============ Config Class ============
 
 export class Config {
   llm: LLMConfig;

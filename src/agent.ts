@@ -29,21 +29,18 @@ export class Agent {
   public systemPrompt: string;
   public maxSteps: number;
   public messages: Message[];
-  public tokenLimit: number;
   public workspaceDir: string;
   public tools: Map<string, Tool>; // Agent stores all tools in a Map
 
   constructor(
     llmClient: LLMClient,
     systemPrompt: string,
-    tools: Tool[] = [],
-    maxSteps: number = 50,
-    workspaceDir: string = "./workspace",
-    tokenLimit: number = 8000
+    tools: Tool[],
+    maxSteps: number,
+    workspaceDir: string
   ) {
     this.llmClient = llmClient;
     this.maxSteps = maxSteps;
-    this.tokenLimit = tokenLimit;
     this.tools = new Map();
 
     // Ensure workspace exists
@@ -53,9 +50,6 @@ export class Agent {
     // Inject workspace dir into system prompt
     this.systemPrompt = buildSystemPrompt(systemPrompt, workspaceDir);
     this.messages = [{ role: "system", content: this.systemPrompt }];
-
-    // TODO: Add structured logging (levels, timestamps, optional file output).
-    // TODO: Track token usage and enforce tokenLimit via summarization/truncation.
 
     // Register tools with the agent
     for (const tool of tools) {
@@ -78,12 +72,6 @@ export class Agent {
 
   listTools(): Tool[] {
     return Array.from(this.tools.values());
-  }
-
-  clearHistoryKeepSystem(): number {
-    const removed = this.messages.length - 1;
-    this.messages = [this.messages[0]];
-    return removed;
   }
 
   async executeTool(
@@ -115,11 +103,9 @@ export class Agent {
 
   async run(): Promise<string> {
     for (let step = 0; step < this.maxSteps; step++) {
-      // TODO: Summarize older messages when approaching tokenLimit.
       console.log();
       console.log("🤖 Assistant:");
 
-      // Stream thinking first, then main content. Print a separator when switching.
       let fullContent = "";
       let fullThinking = "";
       let toolCalls: ToolCall[] | null = null;
@@ -157,27 +143,23 @@ export class Agent {
 
       console.log();
 
-      // [Debug] Log Assistant Response
       Logger.log("CHAT", "🤖 Assistant:", {
         content: fullContent,
         thinking: fullThinking || null,
         tool_calls: toolCalls
       });
 
-      // Add assistant message
       this.messages.push({
         role: "assistant",
         content: fullContent,
-        thinking: fullThinking || null,
-        tool_calls: toolCalls,
+        thinking: fullThinking || undefined,
+        tool_calls: toolCalls || undefined,
       });
 
-      // Check if task is complete (no tool calls)
       if (!toolCalls || toolCalls.length === 0) {
         return fullContent;
       }
 
-      // Iterate & Execute tool calls
       for (const toolCall of toolCalls) {
         const toolCallId = toolCall.id;
         const functionName = toolCall.function.name;
@@ -193,7 +175,6 @@ export class Agent {
           console.log(`✗ Error: ${result.error ?? "Unknown error"}`);
         }
 
-        // add Tool execute result to message queue
         this.messages.push({
           role: "tool",
           content: result.success

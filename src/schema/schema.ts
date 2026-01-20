@@ -20,14 +20,27 @@ export interface ToolCall {
 
 // ============ Messages ============
 
-export interface Message {
-  role: "system" | "user" | "assistant" | "tool";
-  content: string | ContentBlock[]; // Either a plain string or an array of content blocks
-  thinking?: string | null; // Extra reasoning/thinking content for assistant messages
-  tool_calls?: ToolCall[] | null;
-  tool_call_id?: string | null;
-  name?: string | null; // Used for tool role messages
-}
+export type Message =
+  | {
+      role: "system";
+      content: string;
+    }
+  | {
+      role: "user";
+      content: string | ContentBlock[];
+    }
+  | {
+      role: "assistant";
+      content?: string;
+      thinking?: string;
+      tool_calls?: ToolCall[];
+    }
+  | {
+      role: "tool";
+      content: string;
+      tool_call_id: string;
+      name?: string;
+    };
 
 export interface ContentBlock {
   type: string;

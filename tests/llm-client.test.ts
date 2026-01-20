@@ -31,6 +31,10 @@ if (!configPath) {
 
 const maybeDescribe = skipReason ? describe.skip : describe;
 
+if (skipReason) {
+  console.log(`⚠️  Skipping LLM API tests: ${skipReason}`);
+}
+
 maybeDescribe("LLM API Integration (stream)", () => {
   it("should stream a response from the configured LLM API", async () => {
     if (!config || !configPath) {
