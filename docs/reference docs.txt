@@ -1,0 +1,12 @@
+OpenAI compatible API doc:
+https://platform.openai.com/docs/api-reference/chat
+
+Anthropic compatible API doc:
+https://platform.claude.com/docs/en/api/messages/create
+
+MCP docs:
+https://modelcontextprotocol.io/docs/getting-started/intro
+
+Agent Skill doc:
+https://agentskills.io/home
+
