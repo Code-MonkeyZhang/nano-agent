@@ -119,3 +119,4 @@ mini-agent-ts -w ./my-workspace
 | `npm run dev`   | **开发模式运行**：使用 `tsx` 直接运行源代码，无需手动编译，修改代码后即刻生效，适合调试。 |
 | `npm run start` | **生产模式运行**：运行编译后的代码 (需要先执行 build)。                                   |
 | `npm test`      | **运行测试**：执行 Vitest 单元测试。                                                      |
+
