@@ -8,7 +8,7 @@ This is an AI agent that runs in your terminal (command line), capable of helpin
 
 ## 🛠️ Step 1: Install Node.js
 
-Copy and run the appropriate command for your system in Terminal/PowerShell:
+Run the appropriate command for your system in Terminal/PowerShell:
 
 - **Windows** (PowerShell):
   ```powershell
@@ -23,24 +23,24 @@ Copy and run the appropriate command for your system in Terminal/PowerShell:
   curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs
   ```
 
-_(After installation, close and reopen your terminal, then enter `node -v`. If you see something like `v20.x.x`, it means success.)_
+_(After installation, close and reopen your terminal, then type `node -v`. If you see something like `v20.x.x`, it's successful.)_
 
 ## 📥 Step 2: Download the Code
 
-Execute the following commands in your terminal to clone the project locally:
+Run these commands in your terminal to clone the project locally:
 
 ```bash
-# 1. Clone the repository
+# 1. Clone repository
 https://github.com/Code-MonkeyZhang/Mini-Agent-TS.git
-# 2. Navigate to the project directory
-cd Mini-Agent/Mini-Agent-TS
+# 2. Enter project directory
+cd Mini-Agent/Mini-Agent-Tस
 ```
 
-_(If Git is not installed on your computer, Windows users can run `winget install Git.Git`, Mac users run `brew install git`)_
+_(If Git isn't installed: Windows users can run `winget install Git.Git`, Mac users run `brew install git`)_
 
 ## ⚙️ Step 3: Install & Link
 
-Execute the following two commands sequentially in your terminal to register the `mini-agent-ts` command in your system:
+Run these two commands sequentially to register `mini-agent-ts` as a system command:
 
 ```bash
 # 1. Install dependencies
@@ -52,14 +52,14 @@ npm run build && npm link
 
 ## 🔑 Step 4: Configure API Key
 
-You need to provide the AI with your credentials.
+You need to provide AI with your credentials.
 
-1. Navigate to the `config` directory under the project folder.
-2. Make a copy of `config-example.yaml` and rename it to `config.yaml`:
+1. Navigate to the `config` folder in the project directory.
+2. Copy `config-example.yaml` and rename it to `config.yaml`:
    ```bash
    cp config/config-example.yaml config/config.yaml
    ```
-3. Open `config.yaml` with a text editor or code editor, and modify these key configurations:
+3. Open `config.yaml` with a text/code editor and modify these key configurations:
 
 ```yaml
 # config/config.yaml
@@ -67,25 +67,25 @@ You need to provide the AI with your credentials.
 # Enter your API Key
 api_key: "YOUR_API_KEY_HERE" # Replace with your MiniMax API Key
 
-# API endpoint (choose based on your network environment)
-api_base: "https://api.minimax.io/anthropic" # For overseas users
-# api_base: "https://api.minimaxi.com"        # For users in China
+# API endpoint (choose based on network environment)
+api_base: "https://api.minimax.io/anthropic" # Overseas users
+# api_base: "https://api.minimaxi.com"        # Mainland China users
 
 # Model and provider
 model: "MiniMax-M2"
 provider: "anthropic"
 
-# Logging configuration (optional)
-enableLogging: false # Set to true to enable file logging to project-root/logs/
+# Logging (optional)
+enableLogging: false # Set to true to enable file logging (logs saved in logs/ folder at project root)
 ```
 
 ## 🚀 Step 5: Run
 
-Everything is ready! Now you can directly enter commands anywhere in your terminal to launch it.
+Ready to go! You can now launch it from anywhere in your terminal.
 
-### 1. Basic Execution
+### 1. Basic Operation
 
-Starts in the current directory by default:
+Launch in current directory:
 
 ```bash
 mini-agent-ts
@@ -93,7 +93,7 @@ mini-agent-ts
 
 ### 2. Specify Workspace
 
-You can make the Agent work in a specific directory, so all files it creates will be saved there without cluttering your current folder:
+Have Agent work in a specific directory to keep generated files organized:
 
 ```bash
 # Windows
@@ -103,7 +103,7 @@ mini-agent-ts --workspace D:\MyProjects\TestAgent
 mini-agent-ts -w ./my-workspace
 ```
 
-You'll see the welcome screen `🤖 Mini Agent`. Now you can give it instructions as if chatting with a person, for example:
+You'll see the welcome screen `🤖 Mini Agent`. Now give instructions conversationally, e.g.:
 
 > "Please create a file named hello.txt in the current directory containing a poem about programmers."
 
@@ -111,11 +111,11 @@ You'll see the welcome screen `🤖 Mini Agent`. Now you can give it instruction
 
 ## 👨‍💻 Developer Guide
 
-If you want to participate in development or debug the code, you can use the following commands:
+For development/debugging, use these commands:
 
 | Command         | Purpose                                                                                     |
 | :-------------- | :------------------------------------------------------------------------------------------ |
-| `npm run build` | **Build Project**: Compiles TypeScript source code into JavaScript (output to `dist/`).     |
-| `npm run dev`   | **Run in Dev Mode**: Uses `tsx` to directly execute source code without manual compilation, ideal for debugging with instant updates. |
-| `npm run start` | **Run in Production Mode**: Executes compiled code (requires running `build` first).        |
-| `npm test`      | **Run Tests**: Executes Vitest unit tests.                                                  |
+| `npm run build` | **Compile project**: Transpiles TypeScript to JavaScript (outputs to `dist/`).              |
+| `npm run dev`   | **Development mode**: Runs source directly via `tsx` with hot-reloading for debugging.      |
+| `npm run start` | **Production mode**: Runs compiled code (requires prior `build` execution).                 |
+| `npm test`      | **Run tests**: Executes Vitest unit tests.                                                  |
