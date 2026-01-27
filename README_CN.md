@@ -4,28 +4,9 @@
 
 > 本项目是 Minimax 开源的[Mini-Agent](https://github.com/MiniMax-AI/Mini-Agent) 项目的 TypeScript 实现版本。
 
-这是一个可以在你的终端（命令行）中运行的 AI 智能体，它能帮你读写文件、执行系统命令。
+这是一个终端 LLM Agent，支持通过 Agent Skills 和 MCP 扩展能力，兼容 Anthropic 和 OpenAI 协议. 包含基础的文件操作和命令行执行的功能.
 
-## 🛠️ 第一步：安装 Node.js
-
-请根据你的系统，复制对应的命令在终端（Terminal / PowerShell）中运行：
-
-- **Windows** (PowerShell):
-  ```powershell
-  winget install -e --id OpenJS.NodeJS.LTS
-  ```
-- **Mac** (需 Homebrew):
-  ```bash
-  brew install node
-  ```
-- **Linux** (Ubuntu/Debian):
-  ```bash
-  curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs
-  ```
-
-_(安装完成后，请关闭并重新打开终端，输入 `node -v`。如果看到类似 `v20.x.x` 的字样，说明成功。)_
-
-## 📥 第二步：下载代码
+## Quick Start
 
 在终端中执行以下命令将项目克隆到本地：
 
@@ -35,10 +16,6 @@ https://github.com/Code-MonkeyZhang/Mini-Agent-TS.git
 # 2. 进入项目目录
 cd Mini-Agent/Mini-Agent-TS
 ```
-
-_(如果你的电脑没有安装 Git，Windows 用户可以运行 `winget install Git.Git`，Mac 用户运行 `brew install git`)_
-
-## ⚙️ 第三步：安装与链接
 
 在终端中依次执行以下两条命令，这会将 `mini-agent-ts` 命令注册到你的系统中：
 
@@ -50,9 +27,7 @@ npm install
 npm run build && npm link
 ```
 
-## 🔑 第四步：配置 API Key
-
-你需要告诉 AI 你的身份凭证。
+### 配置项目
 
 1. 进入项目文件夹下的 `config` 目录。
 2. 将 `config-example.yaml` 复制一份并重命名为 `config.yaml`：
@@ -65,27 +40,20 @@ npm run build && npm link
 # config/config.yaml
 
 # 填入你的 API Key
-api_key: "YOUR_API_KEY_HERE" # 替换为你的 MiniMax API Key
+api_key: "YOUR_API_KEY_HERE" # 替换为你的 LLM provider API Key
+api_base: "https://api.minimax.io/anthropic" # 替换为你的base url
 
-# API 地址（根据你的网络环境选择）
-api_base: "https://api.minimax.io/anthropic" # 海外用户
-# api_base: "https://api.minimaxi.com"        # 国内用户
-
-# 模型和提供商
+# 模型和提供商SDK的形式
 model: "MiniMax-M2"
-provider: "anthropic"
+provider: "anthropic" # "anthropic" 或 "openai"
 
 # 日志配置（可选）
-enableLogging: false # 设置为 true 以启用文件日志，日志将保存在项目根目录的 logs/ 文件夹下
+enableLogging: false # 设置为 true 以启用日志记录功能，日志将保存在项目根目录的 logs/ 文件夹下
 ```
 
-## 🚀 第五步：运行
+### 运行
 
 一切就绪！现在你可以在终端的**任何位置**直接输入命令来启动。
-
-### 1. 基础运行
-
-默认在当前目录启动：
 
 ```bash
 mini-agent-ts
@@ -96,27 +64,72 @@ mini-agent-ts
 你可以让 Agent 在特定目录下工作，这样它创建的文件都会保存在那里，不会弄乱你的当前文件夹：
 
 ```bash
-# Windows
-mini-agent-ts --workspace D:\MyProjects\TestAgent
-
-# Mac / Linux
-mini-agent-ts -w ./my-workspace
+mini-agent-ts -workspace ./my-workspace
 ```
-
-你会看到欢迎界面 `🤖 Mini Agent`。现在你可以像和人聊天一样给它下达指令了，例如：
-
-> "请帮我在当前目录下创建一个名为 hello.txt 的文件，里面写一首关于程序员的诗。"
 
 ---
 
-## 👨‍💻 开发者指南
+## MCP (Model Context Protocol) 支持
 
-如果你想参与开发或调试代码，可以使用以下命令：
+Mini-Agent-TS 支持 MCP 协议，通过配置文件连接外部工具。
 
-| 命令            | 作用                                                                                      |
-| :-------------- | :---------------------------------------------------------------------------------------- |
-| `npm run build` | **编译项目**：将 TypeScript 源代码编译为 JavaScript (输出到 `dist/` 目录)。               |
-| `npm run dev`   | **开发模式运行**：使用 `tsx` 直接运行源代码，无需手动编译，修改代码后即刻生效，适合调试。 |
-| `npm run start` | **生产模式运行**：运行编译后的代码 (需要先执行 build)。                                   |
-| `npm test`      | **运行测试**：执行 Vitest 单元测试。                                                      |
+### 配置
 
+在 `config.yaml` 中指定 MCP 配置文件路径（默认为 `mcp.json`）：
+
+```yaml
+tools:
+  mcpConfigPath: "mcp.json"
+```
+
+### 示例
+
+复制示例配置文件：
+
+```bash
+cp config/mcp-example.json config/mcp.json
+```
+
+然后编辑 `config/mcp.json` 添加你的 MCP 服务器：
+
+```json
+{
+  "mcpServers": {
+    "time-server": {
+      "command": "uvx",
+      "args": ["mcp-server-time"],
+      "description": "提供时间工具的服务器"
+    }
+  }
+}
+```
+
+---
+
+## Agent Skill
+
+Mini-Agent 支持 **Agent Skill** - 通过专业知识、工作流程和工具扩展 Agent 的能力。
+
+### 创建技能目录
+
+在你的项目中或指定位置创建一个 `skills` 目录：
+
+````bash
+# 创建 skills 目录
+mkdir skills
+
+### 示例技能
+
+你可以在 [`skills-example`](./skills-example/) 目录中找到示例技能。
+
+---
+
+### 启用技能
+
+技能默认已启用。如有需要，你可以在 `config.yaml` 中配置：
+
+```yaml
+tools:
+  enableSkills: true
+  skillsDir: "./skills" # skill文件保存的路径
+````

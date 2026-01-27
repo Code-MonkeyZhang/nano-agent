@@ -4,43 +4,20 @@
 
 > This project is a TypeScript implementation of Minimax's open-source [Mini-Agent](https://github.com/MiniMax-AI/Mini-Agent) project.
 
-This is an AI agent that runs in your terminal (command line), capable of helping you read/write files and execute system commands.
+This is a terminal LLM Agent that supports extending capabilities through Agent Skills and MCP, compatible with both Anthropic and OpenAI protocols. Includes file operations and command execution features.
 
-## 🛠️ Step 1: Install Node.js
+## Quick Start
 
-Run the appropriate command for your system in Terminal/PowerShell:
-
-- **Windows** (PowerShell):
-  ```powershell
-  winget install -e --id OpenJS.NodeJS.LTS
-  ```
-- **Mac** (requires Homebrew):
-  ```bash
-  brew install node
-  ```
-- **Linux** (Ubuntu/Debian):
-  ```bash
-  curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs
-  ```
-
-_(After installation, close and reopen your terminal, then type `node -v`. If you see something like `v20.x.x`, it's successful.)_
-
-## 📥 Step 2: Download the Code
-
-Run these commands in your terminal to clone the project locally:
+Clone the project to your local machine:
 
 ```bash
 # 1. Clone repository
 https://github.com/Code-MonkeyZhang/Mini-Agent-TS.git
 # 2. Enter project directory
-cd Mini-Agent/Mini-Agent-Tस
+cd Mini-Agent/Mini-Agent-TS
 ```
 
-_(If Git isn't installed: Windows users can run `winget install Git.Git`, Mac users run `brew install git`)_
-
-## ⚙️ Step 3: Install & Link
-
-Run these two commands sequentially to register `mini-agent-ts` as a system command:
+Run these two commands to register `mini-agent-ts` as a system command:
 
 ```bash
 # 1. Install dependencies
@@ -50,9 +27,7 @@ npm install
 npm run build && npm link
 ```
 
-## 🔑 Step 4: Configure API Key
-
-You need to provide AI with your credentials.
+### Configure Project
 
 1. Navigate to the `config` folder in the project directory.
 2. Copy `config-example.yaml` and rename it to `config.yaml`:
@@ -65,57 +40,96 @@ You need to provide AI with your credentials.
 # config/config.yaml
 
 # Enter your API Key
-api_key: "YOUR_API_KEY_HERE" # Replace with your MiniMax API Key
+api_key: "YOUR_API_KEY_HERE" # Replace with your LLM provider API Key
+api_base: "https://api.minimax.io/anthropic" # Replace with your base url
 
-# API endpoint (choose based on network environment)
-api_base: "https://api.minimax.io/anthropic" # Overseas users
-# api_base: "https://api.minimaxi.com"        # Mainland China users
-
-# Model and provider
+# Model and provider SDK format
 model: "MiniMax-M2"
-provider: "anthropic"
+provider: "anthropic" # "anthropic" or "openai"
 
-# Logging (optional)
+# Logging configuration (optional)
 enableLogging: false # Set to true to enable file logging (logs saved in logs/ folder at project root)
 ```
 
-## 🚀 Step 5: Run
+### Run
 
-Ready to go! You can now launch it from anywhere in your terminal.
-
-### 1. Basic Operation
-
-Launch in current directory:
+Ready to go! You can now launch it from anywhere in your terminal:
 
 ```bash
 mini-agent-ts
 ```
 
-### 2. Specify Workspace
+### Specify Workspace (Workspace)
 
 Have Agent work in a specific directory to keep generated files organized:
 
 ```bash
-# Windows
-mini-agent-ts --workspace D:\MyProjects\TestAgent
-
-# Mac / Linux
-mini-agent-ts -w ./my-workspace
+mini-agent-ts -workspace ./my-workspace
 ```
-
-You'll see the welcome screen `🤖 Mini Agent`. Now give instructions conversationally, e.g.:
-
-> "Please create a file named hello.txt in the current directory containing a poem about programmers."
 
 ---
 
-## 👨‍💻 Developer Guide
+## MCP (Model Context Protocol) Support
 
-For development/debugging, use these commands:
+Mini-Agent-TS supports the MCP protocol for connecting external tools via configuration.
 
-| Command         | Purpose                                                                                     |
-| :-------------- | :------------------------------------------------------------------------------------------ |
-| `npm run build` | **Compile project**: Transpiles TypeScript to JavaScript (outputs to `dist/`).              |
-| `npm run dev`   | **Development mode**: Runs source directly via `tsx` with hot-reloading for debugging.      |
-| `npm run start` | **Production mode**: Runs compiled code (requires prior `build` execution).                 |
-| `npm test`      | **Run tests**: Executes Vitest unit tests.                                                  |
+### Configuration
+
+Specify the MCP config file path in `config.yaml` (defaults to `mcp.json`):
+
+```yaml
+tools:
+  mcpConfigPath: "mcp.json"
+```
+
+### Example
+
+Copy the example config file:
+
+```bash
+cp config/mcp-example.json config/mcp.json
+```
+
+Then edit `config/mcp.json` to add your MCP servers:
+
+```json
+{
+  "mcpServers": {
+    "time-server": {
+      "command": "uvx",
+      "args": ["mcp-server-time"],
+      "description": "A server that provides time tools"
+    }
+  }
+}
+```
+
+---
+
+## Agent Skill
+
+Mini-Agent supports **Agent Skill** - extending Agent capabilities through specialized knowledge, workflows, and tools.
+
+### Create Skills Directory
+
+Create a `skills` directory in your project or anywhere you specify:
+
+```bash
+# Create skills directory
+mkdir skills
+
+### Example Skills
+
+You can find example skills in the [`skills-example`](./skills-example/) directory.
+
+---
+
+### Enable Skills
+
+Skills are enabled by default. If needed, you can configure them in `config.yaml`:
+
+```yaml
+tools:
+  enableSkills: true
+  skillsDir: "./skills" # Path to skills directory
+```
