@@ -134,3 +134,14 @@ tools:
 欢迎提交 Issue 或 Pull Request 来完善这个项目。
 
 ### Made with ❤️ by Code-MonkeyZhang
+
+---
+
+## 📚 参考文档
+
+本项目的实现参考了以下官方文档：
+
+- [OpenAI API Reference](https://platform.openai.com/docs/api-reference/chat)
+- [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages/create)
+- [Model Context Protocol Docs](https://modelcontextprotocol.io/docs/getting-started/intro)
+- [Agent Skills Documentation](https://agentskills.io/home)
