@@ -1,7 +1,7 @@
-<h1 align="center"> Mini-Agent-TS</h1>
+<h1 align="center"> Nano Agent</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/github/last-commit/Code-MonkeyZhang/Mini-Agent-TS?color=ff69b4" alt="last commit">
+  <img src="https://img.shields.io/github/last-commit/Code-MonkeyZhang/nano-agent?color=ff69b4" alt="last commit">
   <img src="https://img.shields.io/badge/Language-TypeScript-blue.svg" alt="typescript">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="license">
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome">
@@ -13,7 +13,7 @@
 
 > 本项目是基于 MiniMax 开源的 [Mini-Agent](https://github.com/MiniMax-AI/Mini-Agent) 项目的 TypeScript 实现版本。
 
-**Mini-Agent-TS** 是一个简单的终端 LLM Agent，支持通过 **Agent Skills** 和 **MCP (Model Context Protocol)** 扩展能力。它不仅兼容 Anthropic 和 OpenAI 协议，还具备原生文件操作与命令行执行的能力，是开发者在终端环境下的全能 AI 助手。
+**Nano Agent** 是一个简单的终端 LLM Agent，支持通过 **Agent Skills** 和 **MCP (Model Context Protocol)** 扩展能力。它不仅兼容 Anthropic 和 OpenAI 协议，还具备原生文件操作与命令行执行的能力，是开发者在终端环境下的全能 AI 助手。
 
 ---
 
@@ -30,7 +30,7 @@
 ## 📂 项目结构
 
 ```
-Mini-Agent-TS/
+nano-agent/
 ├── src/
 │   ├── agent.ts           # Agent 核心逻辑
 │   ├── cli.ts             # 命令行入口
@@ -58,10 +58,10 @@ Mini-Agent-TS/
 
 ```bash
 # 克隆仓库
-git clone [https://github.com/Code-MonkeyZhang/Mini-Agent-TS.git](https://github.com/Code-MonkeyZhang/Mini-Agent-TS.git)
+git clone [https://github.com/Code-MonkeyZhang/nano-agent.git](https://github.com/Code-MonkeyZhang/nano-agent.git)
 
 # 进入项目目录
-cd Mini-Agent-TS
+cd nano-agent
 
 # 安装依赖
 npm install

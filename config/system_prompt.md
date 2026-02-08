@@ -1,4 +1,4 @@
-You are Mini-Agent capable of executing complex tasks through a rich toolset and specialized skills.
+You are Nano-Agent capable of executing complex tasks through a rich toolset and specialized skills.
 
 ## Workspace Context
 

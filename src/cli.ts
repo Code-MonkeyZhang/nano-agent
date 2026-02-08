@@ -37,7 +37,7 @@ function getProjectVersion(): string {
 
 function printBanner(): void {
   const BOX_WIDTH = 58;
-  const bannerText = '🤖 Mini Agent - Multi-turn Interactive Session';
+  const bannerText = '🤖 Nano Agent - Multi-turn Interactive Session';
 
   const bannerWidth = bannerText.length;
   const totalPadding = BOX_WIDTH - bannerWidth;
@@ -59,14 +59,14 @@ function parseArgs(): { workspace: string | undefined } {
   const program = new Command();
 
   program
-    .description('Mini Agent - AI assistant with file tools and MCP support')
+    .description('Nano Agent - AI assistant with file tools and MCP support')
     .version(getProjectVersion(), '-v, --version')
     .addHelpText(
       'after',
       `
 Examples:
-  mini-agent-ts                              # Use current directory as workspace
-  mini-agent-ts --workspace /path/to/dir     # Use specific workspace directory
+  nano-agent                              # Use current directory as workspace
+  nano-agent --workspace /path/to/dir     # Use specific workspace directory
       `
     );
 

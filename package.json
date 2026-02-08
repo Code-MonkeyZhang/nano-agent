@@ -1,9 +1,9 @@
 {
-  "name": "mini-agent-ts",
-  "version": "0.0.1",
+  "name": "nano-agent",
+  "version": "1.0.0",
   "type": "module",
   "bin": {
-    "mini-agent-ts": "dist/index.js"
+    "nano-agent": "dist/index.js"
   },
   "private": true,
   "scripts": {

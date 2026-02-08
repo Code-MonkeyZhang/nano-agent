@@ -1,20 +1,20 @@
-# Mini Agent Configuration Example
+# Nano Agent Configuration Example
 #
 
 # ===== LLM Configuration =====
 # MiniMax API Configuration
 # Please choose based on your network environment and get API key from corresponding platform
-apiKey: "YOUR_API_KEY_HERE"
-apiBase: "https://api.minimax.io/anthropic"
-model: "MiniMax-M2"
-provider: "anthropic" # "anthropic" or "openai" Default: anthropic
+apiKey: 'YOUR_API_KEY_HERE'
+apiBase: 'https://api.minimax.io/anthropic'
+model: 'MiniMax-M2'
+provider: 'anthropic' # "anthropic" or "openai" Default: anthropic
 
 # ===== Logging Configuration =====
 enableLogging: false # Enable file logging to project-root/logs/
 
 # ===== Agent Configuration =====
 maxSteps: 100 # Maximum execution steps
-systemPromptPath: "system_prompt.md" # System prompt file (same config directory)
+systemPromptPath: 'system_prompt.md' # System prompt file (same config directory)
 
 # ===== Retry Configuration =====
 retry:
@@ -23,8 +23,8 @@ retry:
 
 # ===== Tools Configuration =====
 tools:
-  skillsDir: "./skills" # Directory containing skills (each skill is a folder with SKILL.md)
-  mcpConfigPath: "mcp.json" # MCP configuration file path
+  skillsDir: './skills' # Directory containing skills (each skill is a folder with SKILL.md)
+  mcpConfigPath: 'mcp.json' # MCP configuration file path
   mcp:
     connectTimeout: 10.0
     executeTimeout: 60.0

@@ -1,6 +1,6 @@
 # Contributing Guide
 
-Thank you for your interest in the Mini Agent (TypeScript Edition) project! We welcome contributions of all forms.
+Thank you for your interest in the Nano Agent (TypeScript Edition) project! We welcome contributions of all forms.
 
 ## How to Contribute
 
@@ -32,12 +32,14 @@ If you have an idea for a new feature, please create an Issue first to discuss i
 
 1. Fork this repository.
 2. Clone your fork:
+
    ```bash
-   git clone https://github.com/Code-MonkeyZhang/Mini-Agent-TS.git
-   cd Mini-Agent-TS
+   git clone https://github.com/Code-MonkeyZhang/nano-agent.git
+   cd nano-agent
    ```
 
 3. Create a new branch:
+
    ```bash
    git checkout -b feature/your-feature-name
    # or
@@ -87,6 +89,7 @@ If you have an idea for a new feature, please create an Issue first to discuss i
 
 5. **Commit Changes**
    - Use clear commit messages following [Conventional Commits](https://www.conventionalcommits.org/):
+
      ```bash
      git commit -m "feat(tools): add new file search tool"
      # or
@@ -103,6 +106,7 @@ If you have an idea for a new feature, please create an Issue first to discuss i
      - `chore`: Build or auxiliary tools
 
 6. **Push to Your Fork**
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -148,8 +152,8 @@ interface ToolInput {
 }
 
 class BashTool implements Tool {
-  name: string = "bash";
-  description: string = "Execute bash commands";
+  name: string = 'bash';
+  description: string = 'Execute bash commands';
 
   async execute(params: ToolInput): Promise<ToolResult> {
     // Implementation
@@ -157,9 +161,11 @@ class BashTool implements Tool {
 }
 
 // Bad example ❌
-class bashTool {  // Class names should be PascalCase
-  name:string;  // Missing spaces around colon
-  async execute(params){  // Missing type annotations
+class bashTool {
+  // Class names should be PascalCase
+  name: string; // Missing spaces around colon
+  async execute(params) {
+    // Missing type annotations
     // Implementation
   }
 }
@@ -172,7 +178,7 @@ Use TypeScript type annotations for better code clarity:
 ```typescript
 // Define clear interfaces/types
 interface Message {
-  role: "system" | "user" | "assistant" | "tool";
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string | ContentBlock[];
 }
 
@@ -192,21 +198,21 @@ async function processMessages<T>(
 - Ensure tests cover critical paths.
 
 ```typescript
-import { describe, it, expect } from "vitest";
-import { BashTool } from "../tools/bash-tool.js";
+import { describe, it, expect } from 'vitest';
+import { BashTool } from '../tools/bash-tool.js';
 
-describe("BashTool", () => {
-  it("should execute a simple command", async () => {
+describe('BashTool', () => {
+  it('should execute a simple command', async () => {
     const tool = new BashTool();
     const result = await tool.execute({ command: "echo 'test'" });
     expect(result.success).toBe(true);
-    expect(result.stdout).toContain("test");
+    expect(result.stdout).toContain('test');
   });
 
-  it("should handle timeout correctly", async () => {
+  it('should handle timeout correctly', async () => {
     const tool = new BashTool();
     const result = await tool.execute({
-      command: "sleep 10",
+      command: 'sleep 10',
       timeout: 1,
     });
     expect(result.success).toBe(false);
@@ -216,20 +222,20 @@ describe("BashTool", () => {
 
 ## Available Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run build` | Compile TypeScript to JavaScript |
-| `npm run dev` | Run in development mode with tsx |
-| `npm run start` | Run the compiled application |
-| `npm test` | Run tests in watch mode |
-| `npm run test:run` | Run tests once |
-| `npm run typecheck` | Run TypeScript type checking |
+| Command             | Description                        |
+| ------------------- | ---------------------------------- |
+| `npm run build`     | Compile TypeScript to JavaScript   |
+| `npm run dev`       | Run in development mode with tsx   |
+| `npm run start`     | Run the compiled application       |
+| `npm test`          | Run tests in watch mode            |
+| `npm run test:run`  | Run tests once                     |
+| `npm run typecheck` | Run TypeScript type checking       |
 | `npm run preflight` | Build, test, and link (full check) |
 
 ## Project Structure
 
 ```
-Mini-Agent-TS/
+nano-agent/
 ├── src/              # Source code
 │   ├── agent.ts      # Agent implementation
 │   ├── cli.ts        # Command-line interface

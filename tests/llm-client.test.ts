@@ -1,23 +1,23 @@
-import { describe, it, expect } from "vitest";
-import * as fs from "node:fs";
-import { Config } from "../src/config.js";
-import { LLMClient } from "../src/llm-client/llm-client.js";
-import type { Message } from "../src/schema/schema.js";
+import { describe, it, expect } from 'vitest';
+import * as fs from 'node:fs';
+import { Config } from '../src/config.js';
+import { LLMClient } from '../src/llm-client/llm-client.js';
+import type { Message } from '../src/schema/schema.js';
 
 /**
  * LLM API Integration Test
  *
- * This is an integration test that will make real calls to the LLM API.
- * Before running, ensure `Mini-Agent-TS/config/config.yaml` is configured correctly
- * (when running from `Mini-Agent-TS/`, the path is `./config/config.yaml`) and that
+ * This is an integration test that will make real calls to LLM API.
+ * Before running, ensure `nano-agent/config/config.yaml` is configured correctly
+ * (when running from `nano-agent/`, the path is `./config/config.yaml`) and that
  * your environment allows network access.
  */
-const configPath = Config.findConfigFile("config.yaml");
+const configPath = Config.findConfigFile('config.yaml');
 let config: Config | null = null;
 let skipReason: string | null = null;
 
 if (!configPath) {
-  skipReason = "config.yaml not found";
+  skipReason = 'config.yaml not found';
 } else if (!fs.existsSync(configPath)) {
   skipReason = `config.yaml not found at resolved path: ${configPath}`;
 } else {
@@ -35,8 +35,8 @@ if (skipReason) {
   console.log(`⚠️  Skipping LLM API tests: ${skipReason}`);
 }
 
-maybeDescribe("LLM API Integration (stream)", () => {
-  it("should stream a response from the configured LLM API", async () => {
+maybeDescribe('LLM API Integration (stream)', () => {
+  it('should stream a response from the configured LLM API', async () => {
     if (!config || !configPath) {
       throw new Error(`Unexpected: test ran but was gated off: ${skipReason}`);
     }
@@ -50,10 +50,10 @@ maybeDescribe("LLM API Integration (stream)", () => {
     );
 
     const messages: Message[] = [
-      { role: "user", content: "Reply with exactly: pong" },
+      { role: 'user', content: 'Reply with exactly: pong' },
     ];
 
-    let fullContent = "";
+    let fullContent = '';
     let sawDone = false;
     let chunks = 0;
 

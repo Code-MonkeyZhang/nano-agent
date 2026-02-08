@@ -119,7 +119,7 @@ export function drawStepHeader(step: number, maxSteps: number): string {
 
 export function printBanner(): void {
   const BOX_WIDTH = 58;
-  const bannerText = '🤖 Mini Agent - Multi-turn Interactive Session';
+  const bannerText = '🤖 Nano Agent - Multi-turn Interactive Session';
 
   const bannerWidth = bannerText.length;
   const totalPadding = BOX_WIDTH - bannerWidth;

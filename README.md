@@ -1,7 +1,7 @@
-<h1 align="center"> Mini-Agent-TS</h1>
+<h1 align="center"> Nano Agent</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/github/last-commit/Code-MonkeyZhang/Mini-Agent-TS?color=ff69b4" alt="last commit">
+  <img src="https://img.shields.io/github/last-commit/Code-MonkeyZhang/nano-agent?color=ff69b4" alt="last commit">
   <img src="https://img.shields.io/badge/Language-TypeScript-blue.svg" alt="typescript">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="license">
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome">
@@ -13,7 +13,7 @@
 
 > This project is a TypeScript implementation of MiniMax's open-source [Mini-Agent](https://github.com/MiniMax-AI/Mini-Agent) project.
 
-**Mini-Agent-TS** is a terminal LLM Agent that supports extending capabilities through **Agent Skills** and **MCP (Model Context Protocol)**. It is compatible with both Anthropic and OpenAI protocols, featuring native file operations and command execution capabilities, making it an all-purpose AI assistant for developers in the terminal environment.
+**Nano Agent** is a terminal LLM Agent that supports extending capabilities through **Agent Skills** and **MCP (Model Context Protocol)**. It is compatible with both Anthropic and OpenAI protocols, featuring native file operations and command execution capabilities, making it an all-purpose AI assistant for developers in the terminal environment.
 
 ---
 
@@ -30,7 +30,7 @@
 ## 📂 Project Structure
 
 ```
-Mini-Agent-TS/
+nano-agent/
 ├── src/
 │   ├── agent.ts           # Agent core logic
 │   ├── cli.ts             # CLI entry point
@@ -58,10 +58,10 @@ Run the following commands to deploy the project locally:
 
 ```bash
 # Clone repository
-git clone https://github.com/Code-MonkeyZhang/mini-agent-ts.git
+git clone https://github.com/Code-MonkeyZhang/nano-agent.git
 
 # Enter project directory
-cd Mini-Agent-TS
+cd nano-agent
 
 # Install dependencies
 npm install

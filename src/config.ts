@@ -161,7 +161,7 @@ export class Config {
     }
 
     const homeDir = process.env['HOME'] || process.env['USERPROFILE'] || '';
-    const userConfig = path.join(homeDir, '.mini-agent-ts', 'config', filename);
+    const userConfig = path.join(homeDir, '.nano-agent', 'config', filename);
     if (fs.existsSync(userConfig)) {
       return userConfig;
     }
