@@ -20,7 +20,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: Date.now(),
-    message: 'Nano Agent Server is running'
+    message: 'Nano Agent Server is running',
   });
 });
 
@@ -34,7 +34,7 @@ app.get('/api/status', (req, res) => {
 app.get('/health', (req, res) => {
   res.json({
     alive: true,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   });
 });
 

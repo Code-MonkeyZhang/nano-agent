@@ -1,6 +1,10 @@
 import { httpServer } from './http-server.js';
 import { initWebSocket, shutdownWebSocket } from './websocket-server.js';
-import { startTunnel, stopTunnel, onTunnelStatusChange } from './tunnel.service.js';
+import {
+  startTunnel,
+  stopTunnel,
+  onTunnelStatusChange,
+} from './tunnel.service.js';
 
 const PORT = parseInt(process.env['PORT'] || '3847', 10);
 
@@ -29,7 +33,9 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 onTunnelStatusChange((tunnelStatus) => {
   if (tunnelStatus.url) {
     console.log(`[Tunnel] Public URL: ${tunnelStatus.url}`);
-    console.log(`[Tunnel] WebSocket URL: ${tunnelStatus.url.replace('https://', 'wss://').replace('http://', 'ws://')}/ws`);
+    console.log(
+      `[Tunnel] WebSocket URL: ${tunnelStatus.url.replace('https://', 'wss://').replace('http://', 'ws://')}/ws`
+    );
   }
   if (tunnelStatus.error) {
     console.log(`[Tunnel] Error: ${tunnelStatus.error}`);
@@ -44,7 +50,9 @@ startTunnel(PORT)
     printLocalUrls();
     console.log('🌐 Public URLs (via Cloudflare Tunnel):');
     console.log(`   HTTP:  ${url}/api/status`);
-    console.log(`   WS:   ${url.replace('https://', 'wss://').replace('http://', 'ws://')}/ws`);
+    console.log(
+      `   WS:   ${url.replace('https://', 'wss://').replace('http://', 'ws://')}/ws`
+    );
     console.log();
     console.log('💡 Use the public URL to connect from SwiftChat');
     console.log();

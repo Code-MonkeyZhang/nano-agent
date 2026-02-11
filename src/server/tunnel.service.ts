@@ -12,7 +12,7 @@ const state: TunnelState = {
   process: null,
   url: null,
   status: 'stopped',
-  error: null
+  error: null,
 };
 
 type StatusCallback = (status: TunnelState) => void;
@@ -80,9 +80,20 @@ export async function startTunnel(localPort: number): Promise<string> {
           await cloudflared.install(binPath);
         }
 
-        const proc = spawn(binPath, ['tunnel', '--url', `http://localhost:${localPort}`, '--protocol', 'http2', '--no-autoupdate'], {
-          stdio: ['ignore', 'pipe', 'pipe']
-        });
+        const proc = spawn(
+          binPath,
+          [
+            'tunnel',
+            '--url',
+            `http://localhost:${localPort}`,
+            '--protocol',
+            'http2',
+            '--no-autoupdate',
+          ],
+          {
+            stdio: ['ignore', 'pipe', 'pipe'],
+          }
+        );
 
         state.process = proc;
 
@@ -106,7 +117,7 @@ export async function startTunnel(localPort: number): Promise<string> {
             /https:\/\/[a-zA-Z0-9\-]+\.trycloudflare\.com/, // Main URL pattern
             /https?:\/\/[a-zA-Z0-9\-]+\.trycloudflare\.com/, // Optional http/s
             /https?:\/\/[a-zA-Z0-9\-]+\.pages\.dev/, // Alternative pattern
-            /Your quick Tunnel has run and reached the necessary daemon.*?https?:\/\/([^\s]+)/ // From cloudflared message
+            /Your quick Tunnel has run and reached the necessary daemon.*?https?:\/\/([^\s]+)/, // From cloudflared message
           ];
 
           for (const pattern of patterns) {

@@ -15,7 +15,7 @@ const clients = new Map<string, WebSocket>();
 function createMessage(message: any): string {
   return JSON.stringify({
     ...message,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   });
 }
 
@@ -38,7 +38,7 @@ export function initWebSocket(): void {
       createMessage({
         type: 'connected',
         clientId,
-        message: 'Successfully connected to Nano Agent Server'
+        message: 'Successfully connected to Nano Agent Server',
       })
     );
 
@@ -52,7 +52,7 @@ export function initWebSocket(): void {
         ws.send(
           createMessage({
             type: 'echo',
-            originalMessage: message
+            originalMessage: message,
           })
         );
       } catch (error) {
