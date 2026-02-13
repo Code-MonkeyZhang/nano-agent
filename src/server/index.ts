@@ -1,20 +1,91 @@
-import { httpServer } from './http-server.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+
+import { httpServer, setupOpenAIRoutes } from './http-server.js';
 import { initWebSocket, shutdownWebSocket } from './websocket-server.js';
-import {
-  startTunnel,
-  stopTunnel,
-  onTunnelStatusChange,
-} from './tunnel.service.js';
+import { startTunnel, stopTunnel } from './tunnel.service.js';
+import { Config } from '../config.js';
+import { LLMClient } from '../llm-client/llm-client.js';
 
-const PORT = parseInt(process.env['PORT'] || '3847', 10);
+// ============ Configuration ============
 
-/**
- * Print local connection URLs for SwiftChat
- */
-function printLocalUrls(): void {
-  console.log('📱 Local URLs for SwiftChat:');
-  console.log(`   HTTP:  http://0.0.0.0:${PORT}/api/status`);
+// Load configuration with priority: CWD > Home > Package Root
+const configPath = Config.findConfigFile('config.yaml');
+const config = configPath ? Config.fromYaml(configPath) : null;
+
+// Determine Port: Config > Environment > Default (3847)
+const PORT =
+  config?.openaiHttpServer?.port || parseInt(process.env['PORT'] || '3847', 10);
+
+// ============ Initialization ============
+
+if (config) {
+  // Initialize LLM Client
+  const llmClient = new LLMClient(
+    config.llm.apiKey,
+    config.llm.apiBase,
+    config.llm.provider,
+    config.llm.model,
+    config.llm.retry
+  );
+
+  // Load and Build System Prompt
+  const promptPath = configPath
+    ? path.join(path.dirname(configPath), config.agent.systemPromptPath)
+    : 'system_prompt.md';
+
+  let systemPrompt = 'You are a helpful AI assistant.';
+  try {
+    const rawSystemPrompt = fs.readFileSync(promptPath, 'utf8');
+    systemPrompt = rawSystemPrompt.includes('Current Workspace')
+      ? rawSystemPrompt
+      : `${rawSystemPrompt}
+
+## Current Workspace
+You are currently working in: \`${process.cwd()}\`
+All relative paths will be resolved relative to this directory.`;
+  } catch (error) {
+    console.warn(
+      `[Config] Failed to load system prompt from ${promptPath}:`,
+      error
+    );
+  }
+
+  // Setup OpenAI Routes if enabled
+  if (config.openaiHttpServer?.enabled) {
+    setupOpenAIRoutes(llmClient, systemPrompt);
+  }
+} else {
+  console.warn(
+    'No configuration file found. OpenAI routes will not be enabled.'
+  );
+}
+
+function printUrls(tunnelUrl: string | null): void {
+  console.log('🟢 Server is running');
+
+  console.log('\n📍 Local URLs:');
+  console.log(`   HTTP: http://0.0.0.0:${PORT}/api/status`);
   console.log(`   WS:   ws://0.0.0.0:${PORT}/ws`);
+  if (config?.openaiHttpServer?.enabled) {
+    console.log(`   API:  http://0.0.0.0:${PORT}/v1/chat/completions`);
+    console.log(`   Full API URL: http://0.0.0.0:${PORT}/v1`);
+  }
+
+  if (tunnelUrl) {
+    console.log('\n🌐 Public URLs:');
+    console.log(`   HTTP: ${tunnelUrl}/api/status`);
+    console.log(
+      `   WS:   ${tunnelUrl
+        .replace('https://', 'wss://')
+        .replace('http://', 'ws://')}/ws`
+    );
+    if (config?.openaiHttpServer?.enabled) {
+      console.log(`   API: ${tunnelUrl}/v1/chat/completions`);
+      console.log(`   Full API URL: ${tunnelUrl}/v1`);
+    }
+  }
+
   console.log();
 }
 
@@ -23,44 +94,22 @@ initWebSocket();
 
 // Start HTTP server
 httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`[HTTP] Server listening on port ${PORT}`);
-  console.log(`[HTTP] Status endpoint: http://0.0.0.0:${PORT}/api/status`);
-  console.log(`[HTTP] WebSocket endpoint: ws://0.0.0.0:${PORT}/ws`);
-  console.log();
-});
-
-// Subscribe to tunnel status changes
-onTunnelStatusChange((tunnelStatus) => {
-  if (tunnelStatus.url) {
-    console.log(`[Tunnel] Public URL: ${tunnelStatus.url}`);
-    console.log(
-      `[Tunnel] WebSocket URL: ${tunnelStatus.url.replace('https://', 'wss://').replace('http://', 'ws://')}/ws`
-    );
+  if (process.env['NO_TUNNEL']) {
+    console.log('[Tunnel] Skipped (NO_TUNNEL env var set)');
+    printUrls(null);
+    return;
   }
-  if (tunnelStatus.error) {
-    console.log(`[Tunnel] Error: ${tunnelStatus.error}`);
-  }
-});
 
-// Start Cloudflare Tunnel automatically
-console.log('[Tunnel] Starting Cloudflare Tunnel...');
-startTunnel(PORT)
-  .then((url) => {
-    console.log();
-    printLocalUrls();
-    console.log('🌐 Public URLs (via Cloudflare Tunnel):');
-    console.log(`   HTTP:  ${url}/api/status`);
-    console.log(
-      `   WS:   ${url.replace('https://', 'wss://').replace('http://', 'ws://')}/ws`
-    );
-    console.log();
-    console.log('💡 Use the public URL to connect from SwiftChat');
-    console.log();
-  })
-  .catch((error) => {
-    console.error('[Tunnel] Failed to start:', error);
-    printLocalUrls();
-  });
+  // Start Cloudflare Tunnel automatically
+  startTunnel(PORT)
+    .then((url) => {
+      printUrls(url);
+    })
+    .catch((error) => {
+      console.warn('Tunnel failed to start:', error);
+      printUrls(null);
+    });
+});
 
 /**
  * Graceful shutdown handler

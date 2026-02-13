@@ -59,6 +59,13 @@ const ToolsSchema = z.object({
   mcp: MCPSchema,
 });
 
+const OpenAIHttpServerSchema = z.object({
+  enabled: z.boolean().default(false),
+  port: z.number().default(3847),
+  host: z.string().default('0.0.0.0'),
+  corsEnabled: z.boolean().default(true),
+});
+
 const ConfigSchema = z
   .object({
     apiKey: z.string().min(1, 'Please configure a valid API Key'),
@@ -74,6 +81,8 @@ const ConfigSchema = z
     systemPromptPath: z.string().default(DEFAULTS.AGENT.systemPromptPath),
 
     tools: ToolsSchema,
+
+    openaiHttpServer: OpenAIHttpServerSchema,
   })
   .transform((data) => ({
     llm: {
@@ -91,6 +100,7 @@ const ConfigSchema = z
       systemPromptPath: data.systemPromptPath,
     },
     tools: data.tools,
+    openaiHttpServer: data.openaiHttpServer,
   }));
 
 // ============ Types ============
@@ -98,6 +108,7 @@ const ConfigSchema = z
 export type RetryConfig = z.infer<typeof RetrySchema>; // 创建一个名为 RetryConfig 的类型，它包含了 RetrySchema 中定义的所有字段
 export type LoggingConfig = z.infer<typeof ConfigSchema>['logging'];
 export type ToolsConfig = z.infer<typeof ToolsSchema>;
+export type OpenAIHttpServerConfig = z.infer<typeof OpenAIHttpServerSchema>;
 export type LLMConfig = z.infer<typeof ConfigSchema>['llm'];
 export type AgentConfig = z.infer<typeof ConfigSchema>['agent'];
 
@@ -108,12 +119,14 @@ export class Config {
   logging: LoggingConfig;
   agent: AgentConfig;
   tools: ToolsConfig;
+  openaiHttpServer: OpenAIHttpServerConfig;
 
   constructor(data: z.infer<typeof ConfigSchema>) {
     this.llm = data.llm;
     this.logging = data.logging;
     this.agent = data.agent;
     this.tools = data.tools;
+    this.openaiHttpServer = data.openaiHttpServer;
   }
 
   static createDefaultRetryConfig(): RetryConfig {
