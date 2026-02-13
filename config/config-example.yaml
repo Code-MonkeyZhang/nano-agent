@@ -2,18 +2,17 @@
 #
 
 # ===== LLM Configuration =====
-# MiniMax API Configuration
-# Please choose based on your network environment and get API key from corresponding platform
+# Choose your LLM provider and configure accordingly
 apiKey: 'YOUR_API_KEY_HERE'
-apiBase: 'https://api.minimax.io/anthropic'
-model: 'MiniMax-M2'
-provider: 'anthropic' # "anthropic" or "openai" Default: anthropic
+apiBase: 'https://api.deepseek.com/v1'
+model: 'deepseek-chat'
+provider: 'openai' # "anthropic" or "openai"
 
 # ===== Logging Configuration =====
 enableLogging: false # Enable file logging to project-root/logs/
 
 # ===== Agent Configuration =====
-maxSteps: 100 # Maximum execution steps
+maxSteps: 50 # Maximum execution steps
 systemPromptPath: 'system_prompt.md' # System prompt file (same config directory)
 
 # ===== Retry Configuration =====
@@ -29,3 +28,11 @@ tools:
     connectTimeout: 10.0
     executeTimeout: 60.0
     sseReadTimeout: 120.0
+
+# ===== OpenAI HTTP Server Configuration =====
+# Provides OpenAI-compatible HTTP API for external clients
+openaiHttpServer:
+  enabled: false # Enable OpenAI-compatible HTTP API (default: false)
+  port: 3847 # HTTP server port
+  host: '0.0.0.0' # Bind address (0.0.0.0 = all interfaces)
+  corsEnabled: true # Enable CORS for cross-origin requests
