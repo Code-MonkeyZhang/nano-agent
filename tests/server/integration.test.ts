@@ -7,22 +7,44 @@ import {
 import { Config } from '../../src/config.js';
 import { LLMClient } from '../../src/llm-client/llm-client.js';
 
-const PORT = 3848; // Use a different port for testing to avoid conflicts
+const PORT = 3848;
 const BASE_URL = `http://localhost:${PORT}/v1`;
 
-describe('Integration Tests', () => {
+// Configuration check for integration tests
+const configPath = Config.findConfigFile('config.yaml');
+let config: Config | null = null;
+let skipReason: string | null = null;
+
+if (!configPath) {
+  skipReason = 'config.yaml not found';
+} else {
+  try {
+    config = Config.fromYaml(configPath);
+    // Check if API key is valid (not the placeholder value)
+    if (!config.llm?.apiKey || config.llm.apiKey === 'YOUR_API_KEY_HERE') {
+      skipReason = 'Invalid or missing API key in config.yaml';
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    skipReason = `config.yaml is not usable: ${message}`;
+  }
+}
+
+const maybeDescribe = skipReason ? describe.skip : describe;
+
+if (skipReason) {
+  console.log(`⚠️  Skipping integration tests: ${skipReason}`);
+}
+
+maybeDescribe('Integration Tests', () => {
   // Start server before all tests
   beforeAll(async () => {
+    if (!config) {
+      throw new Error('Config not available for integration test');
+    }
+
     // Override env vars if needed
     process.env['NO_TUNNEL'] = '1';
-
-    // Load config (assumes config.yaml exists in project root or relative path)
-    // We might need to mock this if no config file exists in test environment
-    const configPath = Config.findConfigFile('config.yaml');
-    if (!configPath) {
-      throw new Error('Config file not found for integration test');
-    }
-    const config = Config.fromYaml(configPath);
 
     // Initialize LLM Client
     const llmClient = new LLMClient(
