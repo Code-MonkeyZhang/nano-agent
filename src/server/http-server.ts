@@ -14,9 +14,27 @@ app.use(express.json());
  * Setup OpenAI compatible routes to chat router
  * @param llmClient - LLM Client instance
  * @param systemPrompt - The system prompt to use for agents
+ * @param workspaceDir - The workspace directory
+ * @param mcpConfigPath - The path to the MCP configuration file
+ * @param skillsDir - The directory containing skills
  */
-export function setupOpenAIRoutes(llmClient: LLMClient, systemPrompt: string) {
-  app.use('/v1/chat', createChatRouter(llmClient, systemPrompt));
+export function setupOpenAIRoutes(
+  llmClient: LLMClient,
+  systemPrompt: string,
+  workspaceDir: string,
+  mcpConfigPath: string,
+  skillsDir: string
+) {
+  app.use(
+    '/v1/chat',
+    createChatRouter(
+      llmClient,
+      systemPrompt,
+      workspaceDir,
+      mcpConfigPath,
+      skillsDir
+    )
+  );
 }
 
 /**

@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -51,9 +52,30 @@ All relative paths will be resolved relative to this directory.`;
     );
   }
 
+  // Determine Workspace Directory
+  // For server, we default to CWD. In the future, this could be configurable.
+  const workspaceDir = process.cwd();
+
+  // Determine MCP Config Path
+  const mcpConfigPath = Config.findConfigFile(config.tools.mcpConfigPath);
+  if (!mcpConfigPath) {
+    console.warn(
+      `[Config] MCP config file not found: ${config.tools.mcpConfigPath}`
+    );
+  }
+
+  // Determine Skills Directory
+  const skillsDir = config.tools.skillsDir;
+
   // Setup OpenAI Routes if enabled
   if (config.openaiHttpServer?.enabled) {
-    setupOpenAIRoutes(llmClient, systemPrompt);
+    setupOpenAIRoutes(
+      llmClient,
+      systemPrompt,
+      workspaceDir,
+      mcpConfigPath || '',
+      skillsDir
+    );
   }
 } else {
   console.warn(
