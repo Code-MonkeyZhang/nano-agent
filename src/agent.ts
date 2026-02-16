@@ -1,9 +1,9 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { Logger } from './util/logger.js';
-import { Colors, drawStepHeader } from './util/terminal.js';
 import { LLMClient } from './llm-client/llm-client.js';
 import type { Message, ToolCall } from './schema/index.js';
+import type { AgentEvent } from './schema/index.js';
 import type { Tool, ToolResult } from './tools/index.js';
 
 function buildSystemPrompt(basePrompt: string, workspaceDir: string): string {
@@ -23,7 +23,7 @@ export class Agent {
   public maxSteps: number;
   public messages: Message[];
   public workspaceDir: string;
-  public tools: Map<string, Tool>; // Agent stores all tools in a Map
+  public tools: Map<string, Tool>;
 
   constructor(
     llmClient: LLMClient,
@@ -67,6 +67,17 @@ export class Agent {
     return Array.from(this.tools.values());
   }
 
+  /**
+   * Executes a tool by name with the given parameters.
+   *
+   * Validates tool existence, executes the tool with error handling, and returns
+   * a structured result. Errors during execution are caught and wrapped in a
+   * ToolResult object with error details.
+   *
+   * @param {string} name - The registered name of the tool to execute
+   * @param {Record<string, unknown>} params - Parameters to pass to the tool's execute method
+   * @returns {Promise<ToolResult>} Result object containing success status, content, and optional error message
+   */
   async executeTool(
     name: string,
     params: Record<string, unknown>
@@ -94,16 +105,31 @@ export class Agent {
     }
   }
 
-  async run(): Promise<string> {
+  /**
+   * Core execution loop that yields events for each phase of the agent's operation.
+   *
+   * This method iterates through up to `maxSteps` iterations, each consisting of:
+   * 1. LLM generation (thinking + content) with streaming events
+   * 2. Tool execution (if tool calls are requested)
+   *
+   * Events are yielded in real-time to allow UI decoupling from agent logic.
+   *
+   * @yields {AgentEvent} Sequential events representing:
+   *   - `step_start` - Beginning of a new iteration
+   *   - `thinking` - LLM thinking process (streamed)
+   *   - `content` - LLM response content (streamed)
+   *   - `tool_call` - Batch of tool calls to execute
+   *   - `tool_start` - Execution start for a specific tool
+   *   - `tool_result` - Result of a tool execution
+   * @returns {string} Final response text when the task completes or max steps reached
+   */
+  async *runStream(): AsyncGenerator<AgentEvent, string, void> {
     for (let step = 0; step < this.maxSteps; step++) {
-      // Step Header
-      console.log();
-      console.log(drawStepHeader(step + 1, this.maxSteps));
+      yield { type: 'step_start', step: step + 1, maxSteps: this.maxSteps };
 
       let fullContent = '';
       let fullThinking = '';
       let toolCalls: ToolCall[] | null = null;
-      let isThinkingPrinted = false;
 
       const toolList = this.listTools();
       for await (const chunk of this.llmClient.generateStream(
@@ -111,46 +137,18 @@ export class Agent {
         toolList
       )) {
         if (chunk.thinking) {
-          if (!isThinkingPrinted) {
-            console.log();
-            console.log(`${Colors.DIM}─${'─'.repeat(60)}${Colors.RESET}`);
-            console.log();
-            console.log(
-              `${Colors.BOLD}${Colors.BRIGHT_MAGENTA}🧠 Thinking:${Colors.RESET}`
-            );
-            isThinkingPrinted = true;
-          }
-          process.stdout.write(chunk.thinking);
+          yield { type: 'thinking', content: chunk.thinking };
           fullThinking += chunk.thinking;
         }
 
         if (chunk.content) {
-          if (isThinkingPrinted && fullContent === '') {
-            console.log();
-            console.log();
-            console.log(`${Colors.DIM}─${'─'.repeat(60)}${Colors.RESET}`);
-            console.log();
-            console.log(
-              `${Colors.BOLD}${Colors.BRIGHT_BLUE}📝 Response:${Colors.RESET}`
-            );
-          } else if (!isThinkingPrinted && fullContent === '') {
-            // 只有 Response，无 Thinking：1 个空行 + Response 标题
-            console.log();
-            console.log(
-              `${Colors.BOLD}${Colors.BRIGHT_BLUE}📝 Response:${Colors.RESET}`
-            );
-          }
-          process.stdout.write(chunk.content);
+          yield { type: 'content', content: chunk.content };
           fullContent += chunk.content;
         }
 
         if (chunk.tool_calls) {
           toolCalls = chunk.tool_calls;
         }
-      }
-
-      if (!toolCalls || toolCalls.length === 0) {
-        console.log();
       }
 
       this.messages.push({
@@ -164,51 +162,23 @@ export class Agent {
         return fullContent;
       }
 
+      yield { type: 'tool_call', tool_calls: toolCalls };
+
       for (const toolCall of toolCalls) {
         const toolCallId = toolCall.id;
         const functionName = toolCall.function.name;
         const args = toolCall.function.arguments || {};
 
-        // Tool 标题
-        console.log(
-          `\n${Colors.BOLD}${Colors.BRIGHT_YELLOW}🔧 Tool: ${functionName}${Colors.RESET}`
-        );
-
-        // Arguments
-        console.log(`${Colors.DIM}   Arguments:${Colors.RESET}`);
-        const truncatedArgs: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(args)) {
-          const valueStr = String(value);
-          if (valueStr.length > 200) {
-            truncatedArgs[key] = `${valueStr.slice(0, 200)}...`;
-          } else {
-            truncatedArgs[key] = value;
-          }
-        }
-        const argsJson = JSON.stringify(truncatedArgs, null, 2);
-        for (const line of argsJson.split('\n')) {
-          console.log(`   ${Colors.DIM}${line}${Colors.RESET}`);
-        }
+        yield { type: 'tool_start', toolCall };
 
         const result = await this.executeTool(functionName, args);
 
-        if (result.success) {
-          let resultText = result.content;
-          const MAX_LENGTH = 300;
-          if (resultText.length > MAX_LENGTH) {
-            resultText = `${resultText.slice(
-              0,
-              MAX_LENGTH
-            )}${Colors.DIM}...${Colors.RESET}`;
-          }
-          console.log(
-            `${Colors.BRIGHT_GREEN}✓${Colors.RESET} ${Colors.BOLD}${Colors.BRIGHT_GREEN}Success:${Colors.RESET} ${resultText}\n`
-          );
-        } else {
-          console.log(
-            `${Colors.BRIGHT_RED}✗${Colors.RESET} ${Colors.BOLD}${Colors.BRIGHT_RED}Error:${Colors.RESET} ${Colors.RED}${result.error ?? 'Unknown error'}${Colors.RESET}\n`
-          );
-        }
+        yield {
+          type: 'tool_result',
+          result,
+          toolCallId,
+          toolName: functionName,
+        };
 
         this.messages.push({
           role: 'tool',

@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { Command } from 'commander';
@@ -7,6 +8,7 @@ import { Config } from './config.js';
 import { LLMClient } from './llm-client/llm-client.js';
 import { Logger } from './util/logger.js';
 import { Agent } from './agent.js';
+import { renderConsoleEvents } from './ui/console.js';
 import {
   BashKillTool,
   BashOutputTool,
@@ -102,6 +104,15 @@ function resolveWorkspace(args: { workspace: string | undefined }): string {
 
 // ============ Main Startup Logic ============
 
+/**
+ * Initializes and runs the interactive agent session.
+ *
+ * The interactive loop handles user input, executes the agent, and
+ * handles errors. Cleanup is performed on exit.
+ *
+ * @param {string} workspaceDir - The absolute path to the workspace directory for the session
+ * @returns {Promise<void>} Resolves when the user exits the session (via 'exit', 'quit', 'q', or SIGINT)
+ */
 async function runAgent(workspaceDir: string): Promise<void> {
   // Load Workspace dir
   const configPath = Config.findConfigFile('config.yaml');
@@ -271,7 +282,7 @@ async function runAgent(workspaceDir: string): Promise<void> {
       agent.addUserMessage(userInput);
 
       try {
-        await agent.run();
+        await renderConsoleEvents(agent.runStream());
       } catch (error) {
         if (error instanceof Error) {
           console.log(`\n❌ Error: ${error.message}`);

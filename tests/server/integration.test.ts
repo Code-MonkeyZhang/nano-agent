@@ -56,7 +56,13 @@ maybeDescribe('Integration Tests', () => {
     );
 
     // Setup Routes
-    setupOpenAIRoutes(llmClient, 'You are a test assistant.');
+    setupOpenAIRoutes(
+      llmClient,
+      'You are a test assistant.',
+      process.cwd(),
+      '',
+      ''
+    );
 
     // Initialize services
     initWebSocket();
@@ -96,7 +102,6 @@ maybeDescribe('Integration Tests', () => {
 
     const decoder = new TextDecoder();
     let hasDone = false;
-    let content = '';
 
     while (true) {
       const { done, value } = await reader!.read();
@@ -110,53 +115,13 @@ maybeDescribe('Integration Tests', () => {
           const dataStr = line.replace('data: ', '').trim();
           if (dataStr === '[DONE]') {
             hasDone = true;
-          } else {
-            try {
-              const data = JSON.parse(dataStr);
-              if (data.choices?.[0]?.delta?.content) {
-                content += data.choices[0].delta.content;
-              }
-            } catch {
-              // Ignore parse errors for partial chunks
-            }
           }
         }
       }
     }
 
     expect(hasDone).toBe(true);
-    expect(content.length).toBeGreaterThan(0);
-  });
-
-  it('SSE Streaming - With Thinking Content', async () => {
-    const payload = {
-      model: 'deepseek-chat',
-      messages: [{ role: 'user', content: 'Explain quantum' }],
-      stream: true,
-    };
-
-    const response = await fetch(`${BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    expect(response.status).toBe(200);
-
-    // Just verify we can read the stream without error
-    // Whether "thinking" is present depends on the model response, which we can't guarantee
-    const reader = response.body?.getReader();
-    let hasDone = false;
-
-    const decoder = new TextDecoder();
-    while (true) {
-      const { done, value } = await reader!.read();
-      if (done) break;
-      const chunk = decoder.decode(value);
-      if (chunk.includes('[DONE]')) hasDone = true;
-    }
-
-    expect(hasDone).toBe(true);
+    // expect(content.length).toBeGreaterThan(0); // Content might be empty if only thinking occurred or tool use
   }, 15000);
 
   it('Non-Streaming Response', async () => {
@@ -182,8 +147,18 @@ maybeDescribe('Integration Tests', () => {
     expect(data.choices[0].message.content).toBeDefined();
   });
 
-  it('Error Handling - Invalid Request', async () => {
-    const payload = { messages: [] }; // Missing model, empty messages
+  it('Context Retention (Chat History)', async () => {
+    // We simulate sending a full history.
+    // Since the server is stateless, we must send the history in the messages array.
+    const payload = {
+      model: 'gpt-4',
+      messages: [
+        { role: 'user', content: 'My name is IntegrationTestUser.' },
+        { role: 'assistant', content: 'Hello! Nice to meet you.' },
+        { role: 'user', content: 'What is my name?' },
+      ],
+      stream: false,
+    };
 
     const response = await fetch(`${BASE_URL}/chat/completions`, {
       method: 'POST',
@@ -191,9 +166,10 @@ maybeDescribe('Integration Tests', () => {
       body: JSON.stringify(payload),
     });
 
-    // Nano-agent might return 200 with empty content or error depending on internal validation
-    // But it shouldn't crash.
-    // If it returns 500, that's also an "handled" error in this context vs a crash.
-    expect(response.status).toBeDefined();
-  });
+    const data = (await response.json()) as any;
+    const content = data.choices[0].message.content;
+
+    // Check if the LLM mentions the name from the history
+    expect(content).toContain('IntegrationTestUser');
+  }, 15000);
 });

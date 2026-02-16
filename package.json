@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "type": "module",
   "bin": {
-    "nano-agent": "dist/index.js"
+    "nano-agent": "dist/src/index.js"
   },
   "private": true,
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r config dist/ && chmod +x dist/src/index.js",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "test": "vitest",
@@ -17,7 +17,6 @@
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
-    "prepare": "husky",
     "preflight": "npm run build && npm run test:run && npm run lint && npm link",
     "server": "tsx src/server/index.ts"
   },
