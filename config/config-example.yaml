@@ -32,7 +32,5 @@ tools:
 # ===== OpenAI HTTP Server Configuration =====
 # Provides OpenAI-compatible HTTP API for external clients
 openaiHttpServer:
-  enabled: false # Enable OpenAI-compatible HTTP API (default: false)
-  port: 3847 # HTTP server port
-  host: '0.0.0.0' # Bind address (0.0.0.0 = all interfaces)
-  corsEnabled: true # Enable CORS for cross-origin requests
+  port: 3847    # HTTP server port
+  host: '0.0.0.0'   # Bind address (0.0.0.0 = all interfaces)

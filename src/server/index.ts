@@ -1,87 +1,60 @@
 /* eslint-disable no-console */
 import * as fs from 'node:fs';
-import * as path from 'node:path';
-
 import { httpServer, setupOpenAIRoutes } from './http-server.js';
 import { initWebSocket, shutdownWebSocket } from './websocket-server.js';
 import { startTunnel, stopTunnel } from './tunnel.service.js';
 import { Config } from '../config.js';
-import { LLMClient } from '../llm-client/llm-client.js';
 
 // ============ Configuration ============
 
-// Load configuration with priority: CWD > Home > Package Root
+// Load configuration
 const configPath = Config.findConfigFile('config.yaml');
-const config = configPath ? Config.fromYaml(configPath) : null;
+const config = Config.fromYaml(configPath!);
 
-// Determine Port: Config > Environment > Default (3847)
+// Determine Port
 const PORT =
-  config?.openaiHttpServer?.port || parseInt(process.env['PORT'] || '3847', 10);
+  config.openaiHttpServer?.port || parseInt(process.env['PORT'] || '3847', 10);
 
 // ============ Initialization ============
 
-if (config) {
-  // Initialize LLM Client
-  const llmClient = new LLMClient(
-    config.llm.apiKey,
-    config.llm.apiBase,
-    config.llm.provider,
-    config.llm.model,
-    config.llm.retry
-  );
-
-  // Load and Build System Prompt
-  const promptPath = configPath
-    ? path.join(path.dirname(configPath), config.agent.systemPromptPath)
-    : 'system_prompt.md';
-
-  let systemPrompt = 'You are a helpful AI assistant.';
-  try {
-    const rawSystemPrompt = fs.readFileSync(promptPath, 'utf8');
-    systemPrompt = rawSystemPrompt.includes('Current Workspace')
-      ? rawSystemPrompt
-      : `${rawSystemPrompt}
-
-## Current Workspace
-You are currently working in: \`${process.cwd()}\`
-All relative paths will be resolved relative to this directory.`;
-  } catch (error) {
-    console.warn(
-      `[Config] Failed to load system prompt from ${promptPath}:`,
-      error
-    );
-  }
-
-  // Determine Workspace Directory
-  // For server, we default to CWD. In the future, this could be configurable.
+function resolveWorkspace(): string {
   const workspaceDir = process.cwd();
 
-  // Determine MCP Config Path
-  const mcpConfigPath = Config.findConfigFile(config.tools.mcpConfigPath);
-  if (!mcpConfigPath) {
-    console.warn(
-      `[Config] MCP config file not found: ${config.tools.mcpConfigPath}`
-    );
+  // Ensure workspace directory exists
+  if (!fs.existsSync(workspaceDir)) {
+    fs.mkdirSync(workspaceDir, { recursive: true });
   }
 
-  // Determine Skills Directory
-  const skillsDir = config.tools.skillsDir;
-
-  // Setup OpenAI Routes if enabled
-  if (config.openaiHttpServer?.enabled) {
-    setupOpenAIRoutes(
-      llmClient,
-      systemPrompt,
-      workspaceDir,
-      mcpConfigPath || '',
-      skillsDir
-    );
-  }
-} else {
-  console.warn(
-    'No configuration file found. OpenAI routes will not be enabled.'
-  );
+  return workspaceDir;
 }
+
+async function initServer() {
+  const workspaceDir = resolveWorkspace();
+  await setupOpenAIRoutes(config, workspaceDir);
+
+  // Initialize WebSocket server
+  initWebSocket();
+
+  // Start HTTP server
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    if (process.env['NO_TUNNEL']) {
+      console.log('[Tunnel] Skipped (NO_TUNNEL env var set)');
+      printUrls(null);
+      return;
+    }
+
+    startTunnel(PORT)
+      .then((url) => {
+        printUrls(url);
+      })
+      .catch((error) => {
+        console.warn('Tunnel failed to start:', error);
+        printUrls(null);
+      });
+  });
+}
+
+void initServer();
 
 function printUrls(tunnelUrl: string | null): void {
   console.log('🟢 Server is running');
@@ -89,10 +62,8 @@ function printUrls(tunnelUrl: string | null): void {
   console.log('\n📍 Local URLs:');
   console.log(`   HTTP: http://0.0.0.0:${PORT}/api/status`);
   console.log(`   WS:   ws://0.0.0.0:${PORT}/ws`);
-  if (config?.openaiHttpServer?.enabled) {
-    console.log(`   API:  http://0.0.0.0:${PORT}/v1/chat/completions`);
-    console.log(`   Full API URL: http://0.0.0.0:${PORT}/v1`);
-  }
+  console.log(`   API:  http://0.0.0.0:${PORT}/v1/chat/completions`);
+  console.log(`   Full API URL: http://0.0.0.0:${PORT}/v1`);
 
   if (tunnelUrl) {
     console.log('\n🌐 Public URLs:');
@@ -102,36 +73,12 @@ function printUrls(tunnelUrl: string | null): void {
         .replace('https://', 'wss://')
         .replace('http://', 'ws://')}/ws`
     );
-    if (config?.openaiHttpServer?.enabled) {
-      console.log(`   API: ${tunnelUrl}/v1/chat/completions`);
-      console.log(`   Full API URL: ${tunnelUrl}/v1`);
-    }
+    console.log(`   API: ${tunnelUrl}/v1/chat/completions`);
+    console.log(`   Full API URL: ${tunnelUrl}/v1`);
   }
 
   console.log();
 }
-
-// Initialize WebSocket server
-initWebSocket();
-
-// Start HTTP server
-httpServer.listen(PORT, '0.0.0.0', () => {
-  if (process.env['NO_TUNNEL']) {
-    console.log('[Tunnel] Skipped (NO_TUNNEL env var set)');
-    printUrls(null);
-    return;
-  }
-
-  // Start Cloudflare Tunnel automatically
-  startTunnel(PORT)
-    .then((url) => {
-      printUrls(url);
-    })
-    .catch((error) => {
-      console.warn('Tunnel failed to start:', error);
-      printUrls(null);
-    });
-});
 
 /**
  * Graceful shutdown handler

@@ -2,9 +2,21 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { Logger } from './util/logger.js';
 import { LLMClient } from './llm-client/llm-client.js';
-import type { Message, ToolCall } from './schema/index.js';
-import type { AgentEvent } from './schema/index.js';
-import type { Tool, ToolResult } from './tools/index.js';
+import { Config } from './config.js';
+import {
+  BashKillTool,
+  BashOutputTool,
+  BashTool,
+  EditTool,
+  ReadTool,
+  WriteTool,
+  loadMcpToolsAsync,
+  setMcpTimeoutConfig,
+  type Tool,
+  type ToolResult,
+} from './tools/index.js';
+import type { Message, ToolCall, AgentEvent } from './schema/index.js';
+import { SkillLoader, GetSkillTool } from './skills/index.js';
 
 function buildSystemPrompt(basePrompt: string, workspaceDir: string): string {
   if (basePrompt.includes('Current Workspace')) {
@@ -17,46 +29,154 @@ You are currently working in: \`${workspaceDir}\`
 All relative paths will be resolved relative to this directory.`;
 }
 
-export class Agent {
-  public llmClient: LLMClient;
-  public systemPrompt: string;
+export class AgentCore {
+  public config: Config;
+  public llmClient?: LLMClient;
+  public systemPrompt: string = '';
   public maxSteps: number;
-  public messages: Message[];
+  public messages: Message[] = [];
   public workspaceDir: string;
-  public tools: Map<string, Tool>;
+  public tools: Map<string, Tool> = new Map();
 
-  constructor(
-    llmClient: LLMClient,
-    systemPrompt: string,
-    tools: Tool[],
-    maxSteps: number,
-    workspaceDir: string
-  ) {
-    this.llmClient = llmClient;
-    this.maxSteps = maxSteps;
-    this.tools = new Map();
-
-    // Ensure workspace exists
+  constructor(config: Config, workspaceDir: string) {
+    this.config = config;
+    this.maxSteps = config.agent.maxSteps;
     this.workspaceDir = path.resolve(workspaceDir);
-    fs.mkdirSync(this.workspaceDir, { recursive: true });
+  }
 
-    // Inject workspace dir into system prompt
-    this.systemPrompt = buildSystemPrompt(systemPrompt, workspaceDir);
+  async initialize(): Promise<void> {
+    console.log('[AgentCore] Initializing...');
+
+    // 1. Initialize LLM Client
+    if (!this.llmClient) {
+      this.llmClient = new LLMClient(
+        this.config.llm.apiKey,
+        this.config.llm.apiBase,
+        this.config.llm.provider,
+        this.config.llm.model,
+        this.config.llm.retry
+      );
+
+      console.log('[AgentCore] Checking API connection...');
+      const isConnected = await this.llmClient.checkConnection();
+      if (isConnected) {
+        console.log('[AgentCore] ✅ API connection OK');
+      } else {
+        console.log(
+          '[AgentCore] ⚠️  API connection failed (Check API Key/Network)'
+        );
+      }
+    }
+
+    // 2. Load System Prompt
+    let baseSystemPrompt: string;
+    const systemPromptPath = Config.findConfigFile(
+      this.config.agent.systemPromptPath
+    );
+    if (systemPromptPath && fs.existsSync(systemPromptPath)) {
+      baseSystemPrompt = fs.readFileSync(systemPromptPath, 'utf8');
+      console.log(`[AgentCore] ✅ Loaded system prompt`);
+    } else {
+      baseSystemPrompt =
+        'You are Mini-Agent, an intelligent assistant powered by MiniMax M2 that can help users complete various tasks.';
+      console.log('[AgentCore] ⚠️  System prompt not found, using default');
+    }
+
+    this.systemPrompt = buildSystemPrompt(baseSystemPrompt, this.workspaceDir);
+
+    // 3. Load Tools (Built-in + MCP + Skills)
+    await this.loadBuiltInTools();
+    await this.loadSkills();
+    await this.loadMcpTools();
+
+    // 4. Initialize Messages
     this.messages = [{ role: 'system', content: this.systemPrompt }];
+  }
 
-    // Register tools with the agent
-    for (const tool of tools) {
-      this.registerTool(tool);
+  private async loadBuiltInTools(): Promise<void> {
+    const builtInTools: Tool[] = [
+      new ReadTool(this.workspaceDir),
+      new WriteTool(this.workspaceDir),
+      new EditTool(this.workspaceDir),
+      new BashTool(),
+      new BashOutputTool(),
+      new BashKillTool(),
+    ];
+
+    for (const tool of builtInTools) {
+      this.tools.set(tool.name, tool);
+    }
+  }
+
+  private async loadSkills(): Promise<void> {
+    console.log('[AgentCore] Loading Skills...');
+    const skillsDir = this.config.tools.skillsDir;
+
+    if (!fs.existsSync(skillsDir)) {
+      console.log(
+        `[AgentCore] ⚠️  Skills directory does not exist: ${skillsDir}`
+      );
+      fs.mkdirSync(skillsDir, { recursive: true });
+    }
+
+    try {
+      const skillLoader = new SkillLoader(skillsDir);
+      const discoveredSkills = skillLoader.discoverSkills();
+
+      if (discoveredSkills.length > 0) {
+        this.tools.set('get_skill', new GetSkillTool(skillLoader));
+        const skillsMetadata = skillLoader.getSkillsMetadataPrompt();
+        this.systemPrompt += `\n\n${skillsMetadata}`;
+        Logger.log(
+          'startup',
+          'Skills Loaded:',
+          discoveredSkills.map((s) => s.name)
+        );
+        console.log(
+          `[AgentCore] ✅ Loaded ${discoveredSkills.length} skill(s)`
+        );
+      } else {
+        console.log('[AgentCore] ⚠️  No skills found in skills directory');
+      }
+    } catch (error) {
+      console.error(`[AgentCore] ❌ Failed to load skills: ${error}`);
+    }
+  }
+
+  private async loadMcpTools(): Promise<void> {
+    console.log('[AgentCore] Loading MCP tools...');
+    const mcpConfig = this.config.tools.mcp;
+
+    setMcpTimeoutConfig({
+      connectTimeout: mcpConfig.connectTimeout,
+      executeTimeout: mcpConfig.executeTimeout,
+      sseReadTimeout: mcpConfig.sseReadTimeout,
+    });
+
+    const mcpConfigPath = Config.findConfigFile(
+      this.config.tools.mcpConfigPath
+    );
+
+    if (mcpConfigPath) {
+      const mcpTools = await loadMcpToolsAsync(mcpConfigPath);
+      if (mcpTools.length > 0) {
+        for (const tool of mcpTools) {
+          this.tools.set(tool.name, tool);
+        }
+        console.log(`[AgentCore] ✅ Loaded ${mcpTools.length} MCP tools`);
+      } else {
+        console.log('[AgentCore] ⚠️  No available MCP tools found');
+      }
+    } else {
+      console.log(
+        `[AgentCore] ⚠️  MCP config file not found: ${this.config.tools.mcpConfigPath}`
+      );
     }
   }
 
   addUserMessage(content: string): void {
     Logger.log('CHAT', 'User:', content);
     this.messages.push({ role: 'user', content });
-  }
-
-  registerTool(tool: Tool): void {
-    this.tools.set(tool.name, tool);
   }
 
   getTool(name: string): Tool | undefined {
@@ -67,17 +187,6 @@ export class Agent {
     return Array.from(this.tools.values());
   }
 
-  /**
-   * Executes a tool by name with the given parameters.
-   *
-   * Validates tool existence, executes the tool with error handling, and returns
-   * a structured result. Errors during execution are caught and wrapped in a
-   * ToolResult object with error details.
-   *
-   * @param {string} name - The registered name of the tool to execute
-   * @param {Record<string, unknown>} params - Parameters to pass to the tool's execute method
-   * @returns {Promise<ToolResult>} Result object containing success status, content, and optional error message
-   */
   async executeTool(
     name: string,
     params: Record<string, unknown>
@@ -105,25 +214,11 @@ export class Agent {
     }
   }
 
-  /**
-   * Core execution loop that yields events for each phase of the agent's operation.
-   *
-   * This method iterates through up to `maxSteps` iterations, each consisting of:
-   * 1. LLM generation (thinking + content) with streaming events
-   * 2. Tool execution (if tool calls are requested)
-   *
-   * Events are yielded in real-time to allow UI decoupling from agent logic.
-   *
-   * @yields {AgentEvent} Sequential events representing:
-   *   - `step_start` - Beginning of a new iteration
-   *   - `thinking` - LLM thinking process (streamed)
-   *   - `content` - LLM response content (streamed)
-   *   - `tool_call` - Batch of tool calls to execute
-   *   - `tool_start` - Execution start for a specific tool
-   *   - `tool_result` - Result of a tool execution
-   * @returns {string} Final response text when the task completes or max steps reached
-   */
   async *runStream(): AsyncGenerator<AgentEvent, string, void> {
+    if (!this.llmClient) {
+      throw new Error('AgentCore not initialized. Call initialize() first.');
+    }
+
     for (let step = 0; step < this.maxSteps; step++) {
       yield { type: 'step_start', step: step + 1, maxSteps: this.maxSteps };
 

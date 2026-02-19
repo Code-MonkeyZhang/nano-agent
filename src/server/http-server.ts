@@ -1,40 +1,31 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import { createServer as createHttpServer } from 'http';
-import cors from 'cors';
-import { LLMClient } from '../llm-client/llm-client.js';
+import { Config } from '../config.js';
+import { AgentCore } from '../agent.js';
 import { createChatRouter } from './routes/chat.js';
 
 const app = express();
 
-app.use(cors());
+let globalAgent: AgentCore | null = null;
+
+export function getGlobalAgent(): AgentCore | null {
+  return globalAgent;
+}
+
 app.use(express.json());
 
 /**
  * Setup OpenAI compatible routes to chat router
- * @param llmClient - LLM Client instance
- * @param systemPrompt - The system prompt to use for agents
+ * @param config - The agent configuration
  * @param workspaceDir - The workspace directory
- * @param mcpConfigPath - The path to the MCP configuration file
- * @param skillsDir - The directory containing skills
  */
-export function setupOpenAIRoutes(
-  llmClient: LLMClient,
-  systemPrompt: string,
-  workspaceDir: string,
-  mcpConfigPath: string,
-  skillsDir: string
-) {
-  app.use(
-    '/v1/chat',
-    createChatRouter(
-      llmClient,
-      systemPrompt,
-      workspaceDir,
-      mcpConfigPath,
-      skillsDir
-    )
-  );
+export async function setupOpenAIRoutes(config: Config, workspaceDir: string) {
+  // init agent core
+  globalAgent = new AgentCore(config, workspaceDir);
+  await globalAgent.initialize();
+
+  app.use('/v1/chat', createChatRouter());
 }
 
 /**

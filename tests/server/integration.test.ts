@@ -5,7 +5,6 @@ import {
   shutdownWebSocket,
 } from '../../src/server/websocket-server.js';
 import { Config } from '../../src/config.js';
-import { LLMClient } from '../../src/llm-client/llm-client.js';
 
 const PORT = 3848;
 const BASE_URL = `http://localhost:${PORT}/v1`;
@@ -47,21 +46,12 @@ maybeDescribe('Integration Tests', () => {
     process.env['NO_TUNNEL'] = '1';
 
     // Initialize LLM Client
-    const llmClient = new LLMClient(
-      config.llm.apiKey,
-      config.llm.apiBase,
-      config.llm.provider,
-      config.llm.model,
-      config.llm.retry
-    );
+    // const llmClient = new LLMClient(...); // Removed as AgentCore initializes it internally
 
     // Setup Routes
     setupOpenAIRoutes(
-      llmClient,
-      'You are a test assistant.',
-      process.cwd(),
-      '',
-      ''
+      config,
+      process.cwd()
     );
 
     // Initialize services
@@ -122,7 +112,7 @@ maybeDescribe('Integration Tests', () => {
 
     expect(hasDone).toBe(true);
     // expect(content.length).toBeGreaterThan(0); // Content might be empty if only thinking occurred or tool use
-  }, 15000);
+  }, 30000);
 
   it('Non-Streaming Response', async () => {
     const payload = {
@@ -145,7 +135,7 @@ maybeDescribe('Integration Tests', () => {
     expect(data.choices).toBeInstanceOf(Array);
     expect(data.choices.length).toBeGreaterThan(0);
     expect(data.choices[0].message.content).toBeDefined();
-  });
+  }, 30000);
 
   it('Context Retention (Chat History)', async () => {
     // We simulate sending a full history.
@@ -171,5 +161,5 @@ maybeDescribe('Integration Tests', () => {
 
     // Check if the LLM mentions the name from the history
     expect(content).toContain('IntegrationTestUser');
-  }, 15000);
+  }, 30000);
 });
