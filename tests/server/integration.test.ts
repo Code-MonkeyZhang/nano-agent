@@ -5,28 +5,35 @@ import {
   shutdownWebSocket,
 } from '../../src/server/websocket-server.js';
 import { Config } from '../../src/config.js';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const PORT = 3848;
 const BASE_URL = `http://localhost:${PORT}/v1`;
 
+// Get test directory path
+const testFileDir = path.dirname(fileURLToPath(import.meta.url));
+const testsDir = path.join(testFileDir, '..');
+const testConfigDir = path.join(testsDir, 'test-config');
+const testConfigPath = path.join(testConfigDir, 'config.yaml');
+
 // Configuration check for integration tests
-const configPath = Config.findConfigFile('config.yaml');
 let config: Config | null = null;
 let skipReason: string | null = null;
 
-if (!configPath) {
-  skipReason = 'config.yaml not found';
-} else {
-  try {
-    config = Config.fromYaml(configPath);
-    // Check if API key is valid (not the placeholder value)
-    if (!config.llm?.apiKey || config.llm.apiKey === 'YOUR_API_KEY_HERE') {
-      skipReason = 'Invalid or missing API key in config.yaml';
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    skipReason = `config.yaml is not usable: ${message}`;
+try {
+  config = Config.fromYaml(testConfigPath);
+  // Override MCP config path to absolute path to avoid Config.findConfigFile() searching in other locations
+  config.tools.mcpConfigPath = path.join(testConfigDir, 'mcp.json');
+  // Override skills dir to absolute path
+  config.tools.skillsDir = path.join(testConfigDir, 'skills');
+  // Check if API key is valid (not the placeholder value)
+  if (!config.llm?.apiKey || config.llm.apiKey === 'YOUR_API_KEY_HERE') {
+    skipReason = 'Invalid or missing API key in test config';
   }
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  skipReason = `Test config is not usable: ${message}`;
 }
 
 const maybeDescribe = skipReason ? describe.skip : describe;
@@ -49,9 +56,9 @@ maybeDescribe('Integration Tests', () => {
     // const llmClient = new LLMClient(...); // Removed as AgentCore initializes it internally
 
     // Setup Routes
-    setupOpenAIRoutes(
+    await setupOpenAIRoutes(
       config,
-      process.cwd()
+      path.join(testsDir, 'config')
     );
 
     // Initialize services
