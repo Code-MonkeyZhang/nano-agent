@@ -1,10 +1,22 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { Logger } from './util/logger.js';
-import { Colors, drawStepHeader } from './util/terminal.js';
 import { LLMClient } from './llm-client/llm-client.js';
-import type { Message, ToolCall } from './schema/index.js';
-import type { Tool, ToolResult } from './tools/index.js';
+import { Config } from './config.js';
+import {
+  BashKillTool,
+  BashOutputTool,
+  BashTool,
+  EditTool,
+  ReadTool,
+  WriteTool,
+  loadMcpToolsAsync,
+  setMcpTimeoutConfig,
+  type Tool,
+  type ToolResult,
+} from './tools/index.js';
+import type { Message, ToolCall, AgentEvent } from './schema/index.js';
+import { SkillLoader, GetSkillTool } from './skills/index.js';
 
 function buildSystemPrompt(basePrompt: string, workspaceDir: string): string {
   if (basePrompt.includes('Current Workspace')) {
@@ -17,46 +29,154 @@ You are currently working in: \`${workspaceDir}\`
 All relative paths will be resolved relative to this directory.`;
 }
 
-export class Agent {
-  public llmClient: LLMClient;
-  public systemPrompt: string;
+export class AgentCore {
+  public config: Config;
+  public llmClient?: LLMClient;
+  public systemPrompt: string = '';
   public maxSteps: number;
-  public messages: Message[];
+  public messages: Message[] = [];
   public workspaceDir: string;
-  public tools: Map<string, Tool>; // Agent stores all tools in a Map
+  public tools: Map<string, Tool> = new Map();
 
-  constructor(
-    llmClient: LLMClient,
-    systemPrompt: string,
-    tools: Tool[],
-    maxSteps: number,
-    workspaceDir: string
-  ) {
-    this.llmClient = llmClient;
-    this.maxSteps = maxSteps;
-    this.tools = new Map();
-
-    // Ensure workspace exists
+  constructor(config: Config, workspaceDir: string) {
+    this.config = config;
+    this.maxSteps = config.agent.maxSteps;
     this.workspaceDir = path.resolve(workspaceDir);
-    fs.mkdirSync(this.workspaceDir, { recursive: true });
+  }
 
-    // Inject workspace dir into system prompt
-    this.systemPrompt = buildSystemPrompt(systemPrompt, workspaceDir);
+  async initialize(): Promise<void> {
+    console.log('[AgentCore] Initializing...');
+
+    // 1. Initialize LLM Client
+    if (!this.llmClient) {
+      this.llmClient = new LLMClient(
+        this.config.llm.apiKey,
+        this.config.llm.apiBase,
+        this.config.llm.provider,
+        this.config.llm.model,
+        this.config.llm.retry
+      );
+
+      console.log('[AgentCore] Checking API connection...');
+      const isConnected = await this.llmClient.checkConnection();
+      if (isConnected) {
+        console.log('[AgentCore] ✅ API connection OK');
+      } else {
+        console.log(
+          '[AgentCore] ⚠️  API connection failed (Check API Key/Network)'
+        );
+      }
+    }
+
+    // 2. Load System Prompt
+    let baseSystemPrompt: string;
+    const systemPromptPath = Config.findConfigFile(
+      this.config.agent.systemPromptPath
+    );
+    if (systemPromptPath && fs.existsSync(systemPromptPath)) {
+      baseSystemPrompt = fs.readFileSync(systemPromptPath, 'utf8');
+      console.log(`[AgentCore] ✅ Loaded system prompt`);
+    } else {
+      baseSystemPrompt =
+        'You are Mini-Agent, an intelligent assistant powered by MiniMax M2 that can help users complete various tasks.';
+      console.log('[AgentCore] ⚠️  System prompt not found, using default');
+    }
+
+    this.systemPrompt = buildSystemPrompt(baseSystemPrompt, this.workspaceDir);
+
+    // 3. Load Tools (Built-in + MCP + Skills)
+    await this.loadBuiltInTools();
+    await this.loadSkills();
+    await this.loadMcpTools();
+
+    // 4. Initialize Messages
     this.messages = [{ role: 'system', content: this.systemPrompt }];
+  }
 
-    // Register tools with the agent
-    for (const tool of tools) {
-      this.registerTool(tool);
+  private async loadBuiltInTools(): Promise<void> {
+    const builtInTools: Tool[] = [
+      new ReadTool(this.workspaceDir),
+      new WriteTool(this.workspaceDir),
+      new EditTool(this.workspaceDir),
+      new BashTool(),
+      new BashOutputTool(),
+      new BashKillTool(),
+    ];
+
+    for (const tool of builtInTools) {
+      this.tools.set(tool.name, tool);
+    }
+  }
+
+  private async loadSkills(): Promise<void> {
+    console.log('[AgentCore] Loading Skills...');
+    const skillsDir = this.config.tools.skillsDir;
+
+    if (!fs.existsSync(skillsDir)) {
+      console.log(
+        `[AgentCore] ⚠️  Skills directory does not exist: ${skillsDir}`
+      );
+      fs.mkdirSync(skillsDir, { recursive: true });
+    }
+
+    try {
+      const skillLoader = new SkillLoader(skillsDir);
+      const discoveredSkills = skillLoader.discoverSkills();
+
+      if (discoveredSkills.length > 0) {
+        this.tools.set('get_skill', new GetSkillTool(skillLoader));
+        const skillsMetadata = skillLoader.getSkillsMetadataPrompt();
+        this.systemPrompt += `\n\n${skillsMetadata}`;
+        Logger.log(
+          'startup',
+          'Skills Loaded:',
+          discoveredSkills.map((s) => s.name)
+        );
+        console.log(
+          `[AgentCore] ✅ Loaded ${discoveredSkills.length} skill(s)`
+        );
+      } else {
+        console.log('[AgentCore] ⚠️  No skills found in skills directory');
+      }
+    } catch (error) {
+      console.error(`[AgentCore] ❌ Failed to load skills: ${error}`);
+    }
+  }
+
+  private async loadMcpTools(): Promise<void> {
+    console.log('[AgentCore] Loading MCP tools...');
+    const mcpConfig = this.config.tools.mcp;
+
+    setMcpTimeoutConfig({
+      connectTimeout: mcpConfig.connectTimeout,
+      executeTimeout: mcpConfig.executeTimeout,
+      sseReadTimeout: mcpConfig.sseReadTimeout,
+    });
+
+    const mcpConfigPath = Config.findConfigFile(
+      this.config.tools.mcpConfigPath
+    );
+
+    if (mcpConfigPath) {
+      const mcpTools = await loadMcpToolsAsync(mcpConfigPath);
+      if (mcpTools.length > 0) {
+        for (const tool of mcpTools) {
+          this.tools.set(tool.name, tool);
+        }
+        console.log(`[AgentCore] ✅ Loaded ${mcpTools.length} MCP tools`);
+      } else {
+        console.log('[AgentCore] ⚠️  No available MCP tools found');
+      }
+    } else {
+      console.log(
+        `[AgentCore] ⚠️  MCP config file not found: ${this.config.tools.mcpConfigPath}`
+      );
     }
   }
 
   addUserMessage(content: string): void {
     Logger.log('CHAT', 'User:', content);
     this.messages.push({ role: 'user', content });
-  }
-
-  registerTool(tool: Tool): void {
-    this.tools.set(tool.name, tool);
   }
 
   getTool(name: string): Tool | undefined {
@@ -94,16 +214,17 @@ export class Agent {
     }
   }
 
-  async run(): Promise<string> {
+  async *runStream(): AsyncGenerator<AgentEvent, string, void> {
+    if (!this.llmClient) {
+      throw new Error('AgentCore not initialized. Call initialize() first.');
+    }
+
     for (let step = 0; step < this.maxSteps; step++) {
-      // Step Header
-      console.log();
-      console.log(drawStepHeader(step + 1, this.maxSteps));
+      yield { type: 'step_start', step: step + 1, maxSteps: this.maxSteps };
 
       let fullContent = '';
       let fullThinking = '';
       let toolCalls: ToolCall[] | null = null;
-      let isThinkingPrinted = false;
 
       const toolList = this.listTools();
       for await (const chunk of this.llmClient.generateStream(
@@ -111,46 +232,18 @@ export class Agent {
         toolList
       )) {
         if (chunk.thinking) {
-          if (!isThinkingPrinted) {
-            console.log();
-            console.log(`${Colors.DIM}─${'─'.repeat(60)}${Colors.RESET}`);
-            console.log();
-            console.log(
-              `${Colors.BOLD}${Colors.BRIGHT_MAGENTA}🧠 Thinking:${Colors.RESET}`
-            );
-            isThinkingPrinted = true;
-          }
-          process.stdout.write(chunk.thinking);
+          yield { type: 'thinking', content: chunk.thinking };
           fullThinking += chunk.thinking;
         }
 
         if (chunk.content) {
-          if (isThinkingPrinted && fullContent === '') {
-            console.log();
-            console.log();
-            console.log(`${Colors.DIM}─${'─'.repeat(60)}${Colors.RESET}`);
-            console.log();
-            console.log(
-              `${Colors.BOLD}${Colors.BRIGHT_BLUE}📝 Response:${Colors.RESET}`
-            );
-          } else if (!isThinkingPrinted && fullContent === '') {
-            // 只有 Response，无 Thinking：1 个空行 + Response 标题
-            console.log();
-            console.log(
-              `${Colors.BOLD}${Colors.BRIGHT_BLUE}📝 Response:${Colors.RESET}`
-            );
-          }
-          process.stdout.write(chunk.content);
+          yield { type: 'content', content: chunk.content };
           fullContent += chunk.content;
         }
 
         if (chunk.tool_calls) {
           toolCalls = chunk.tool_calls;
         }
-      }
-
-      if (!toolCalls || toolCalls.length === 0) {
-        console.log();
       }
 
       this.messages.push({
@@ -164,51 +257,23 @@ export class Agent {
         return fullContent;
       }
 
+      yield { type: 'tool_call', tool_calls: toolCalls };
+
       for (const toolCall of toolCalls) {
         const toolCallId = toolCall.id;
         const functionName = toolCall.function.name;
         const args = toolCall.function.arguments || {};
 
-        // Tool 标题
-        console.log(
-          `\n${Colors.BOLD}${Colors.BRIGHT_YELLOW}🔧 Tool: ${functionName}${Colors.RESET}`
-        );
-
-        // Arguments
-        console.log(`${Colors.DIM}   Arguments:${Colors.RESET}`);
-        const truncatedArgs: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(args)) {
-          const valueStr = String(value);
-          if (valueStr.length > 200) {
-            truncatedArgs[key] = `${valueStr.slice(0, 200)}...`;
-          } else {
-            truncatedArgs[key] = value;
-          }
-        }
-        const argsJson = JSON.stringify(truncatedArgs, null, 2);
-        for (const line of argsJson.split('\n')) {
-          console.log(`   ${Colors.DIM}${line}${Colors.RESET}`);
-        }
+        yield { type: 'tool_start', toolCall };
 
         const result = await this.executeTool(functionName, args);
 
-        if (result.success) {
-          let resultText = result.content;
-          const MAX_LENGTH = 300;
-          if (resultText.length > MAX_LENGTH) {
-            resultText = `${resultText.slice(
-              0,
-              MAX_LENGTH
-            )}${Colors.DIM}...${Colors.RESET}`;
-          }
-          console.log(
-            `${Colors.BRIGHT_GREEN}✓${Colors.RESET} ${Colors.BOLD}${Colors.BRIGHT_GREEN}Success:${Colors.RESET} ${resultText}\n`
-          );
-        } else {
-          console.log(
-            `${Colors.BRIGHT_RED}✗${Colors.RESET} ${Colors.BOLD}${Colors.BRIGHT_RED}Error:${Colors.RESET} ${Colors.RED}${result.error ?? 'Unknown error'}${Colors.RESET}\n`
-          );
-        }
+        yield {
+          type: 'tool_result',
+          result,
+          toolCallId,
+          toolName: functionName,
+        };
 
         this.messages.push({
           role: 'tool',

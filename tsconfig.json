@@ -26,9 +26,8 @@
     "moduleResolution": "nodenext",
     "target": "es2022",
     "outDir": "dist",
-    "rootDir": "src",
     "jsx": "react-jsx"
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules", "dist"]
 }

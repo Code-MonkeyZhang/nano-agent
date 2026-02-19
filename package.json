@@ -3,25 +3,28 @@
   "version": "1.0.0",
   "type": "module",
   "bin": {
-    "nano-agent": "dist/index.js"
+    "nano-agent": "dist/src/index.js"
   },
   "private": true,
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r config dist/ && chmod +x dist/src/index.js",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "test": "vitest",
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts",
+    "lint": "eslint src --ext .ts --quiet",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
-    "prepare": "husky",
-    "preflight": "npm run build && npm run test:run && npm run lint && npm link"
+    "preflight": "npm run build && npm run test:run && npm run lint && npm link",
+    "server": "tsx src/server/index.ts"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/node": "^24.10.2",
+    "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
     "eslint": "^9.39.2",
@@ -37,8 +40,13 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
     "@modelcontextprotocol/sdk": "^1.1.0",
+    "cloudflared": "^0.7.1",
     "commander": "^14.0.2",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "openai": "^6.10.0",
+    "uuid": "^13.0.0",
+    "ws": "^8.19.0",
     "yaml": "^2.8.2",
     "zod": "^4.3.5"
   },

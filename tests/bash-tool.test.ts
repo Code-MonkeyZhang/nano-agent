@@ -1,39 +1,39 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from 'vitest';
 import {
   BashTool,
   BashOutputTool,
   BashKillTool,
-} from "../src/tools/bash-tool.js";
+} from '../src/tools/bash-tool.js';
 
-const describeIf = process.platform === "win32" ? describe.skip : describe;
+const describeIf = process.platform === 'win32' ? describe.skip : describe;
 
-describeIf("Bash tool", () => {
-  it("should execute foreground commands", async () => {
+describeIf('Bash tool', () => {
+  it('should execute foreground commands', async () => {
     const tool = new BashTool();
     const result = await tool.execute({
       command: "echo 'Hello from foreground'",
     });
 
     expect(result.success).toBe(true);
-    expect(result.stdout).toContain("Hello from foreground");
+    expect(result.stdout).toContain('Hello from foreground');
     expect(result.exit_code).toBe(0);
   });
 
-  it("should capture stdout and stderr", async () => {
+  it('should capture stdout and stderr', async () => {
     const tool = new BashTool();
     const result = await tool.execute({
       command: "echo 'stdout message' && echo 'stderr message' >&2",
     });
 
     expect(result.success).toBe(true);
-    expect(result.stdout).toContain("stdout message");
-    expect(result.stderr).toContain("stderr message");
+    expect(result.stdout).toContain('stdout message');
+    expect(result.stderr).toContain('stderr message');
   });
 
-  it("should report command failures", async () => {
+  it('should report command failures', async () => {
     const tool = new BashTool();
     const result = await tool.execute({
-      command: "ls /nonexistent_directory_12345",
+      command: 'ls /nonexistent_directory_12345',
     });
 
     expect(result.success).toBe(false);
@@ -41,15 +41,15 @@ describeIf("Bash tool", () => {
     expect(result.error).toBeTruthy();
   });
 
-  it("should handle timeouts", async () => {
+  it('should handle timeouts', async () => {
     const tool = new BashTool();
-    const result = await tool.execute({ command: "sleep 5", timeout: 1 });
+    const result = await tool.execute({ command: 'sleep 5', timeout: 1 });
 
     expect(result.success).toBe(false);
-    expect(result.error?.toLowerCase()).toContain("timed out");
+    expect(result.error?.toLowerCase()).toContain('timed out');
   }, 10000);
 
-  it("should run background commands and fetch output", async () => {
+  it('should run background commands and fetch output', async () => {
     const tool = new BashTool();
     const result = await tool.execute({
       command: "for i in 1 2 3; do echo 'Line '$i; sleep 0.2; done",
@@ -57,36 +57,36 @@ describeIf("Bash tool", () => {
     });
 
     expect(result.success).toBe(true);
-    const bashId = result.bash_id ?? "";
-    expect(bashId).not.toBe("");
+    const bashId = result.bash_id ?? '';
+    expect(bashId).not.toBe('');
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     const outputTool = new BashOutputTool();
     const outputResult = await outputTool.execute({ bash_id: bashId });
 
     expect(outputResult.success).toBe(true);
-    expect(outputResult.stdout).toContain("Line");
+    expect(outputResult.stdout).toContain('Line');
 
     const killTool = new BashKillTool();
     const killResult = await killTool.execute({ bash_id: bashId });
     expect(killResult.success).toBe(true);
   }, 10000);
 
-  it("should filter background output", async () => {
+  it('should filter background output', async () => {
     const tool = new BashTool();
     const result = await tool.execute({
       command: "for i in 1 2 3 4 5; do echo 'Line '$i; sleep 0.2; done",
       run_in_background: true,
     });
 
-    const bashId = result.bash_id ?? "";
-    expect(bashId).not.toBe("");
+    const bashId = result.bash_id ?? '';
+    expect(bashId).not.toBe('');
     await new Promise((resolve) => setTimeout(resolve, 800));
 
     const outputTool = new BashOutputTool();
     const outputResult = await outputTool.execute({
       bash_id: bashId,
-      filter_str: "Line [24]",
+      filter_str: 'Line [24]',
     });
 
     expect(outputResult.success).toBe(true);
@@ -98,19 +98,19 @@ describeIf("Bash tool", () => {
     await killTool.execute({ bash_id: bashId });
   }, 10000);
 
-  it("should handle non-existent bash ids", async () => {
+  it('should handle non-existent bash ids', async () => {
     const killTool = new BashKillTool();
-    const killResult = await killTool.execute({ bash_id: "nonexistent123" });
+    const killResult = await killTool.execute({ bash_id: 'nonexistent123' });
 
     expect(killResult.success).toBe(false);
-    expect(killResult.error?.toLowerCase()).toContain("not found");
+    expect(killResult.error?.toLowerCase()).toContain('not found');
 
     const outputTool = new BashOutputTool();
     const outputResult = await outputTool.execute({
-      bash_id: "nonexistent123",
+      bash_id: 'nonexistent123',
     });
 
     expect(outputResult.success).toBe(false);
-    expect(outputResult.error?.toLowerCase()).toContain("not found");
+    expect(outputResult.error?.toLowerCase()).toContain('not found');
   });
 });
