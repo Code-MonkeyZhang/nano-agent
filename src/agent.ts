@@ -37,9 +37,7 @@ function findProjectRoot(): string {
 
     const parentDir = path.resolve(currentDir, '..');
     if (parentDir === currentDir) {
-      throw new Error(
-        'Cannot find project root (package.json not found)'
-      );
+      throw new Error('Cannot find project root (package.json not found)');
     }
     currentDir = parentDir;
   }

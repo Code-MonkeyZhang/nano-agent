@@ -84,9 +84,9 @@ export async function startTunnel(localPort: number): Promise<string> {
             console.error('[Tunnel] Failed to install binary:', installError);
             throw new Error(
               'Failed to download cloudflared binary. ' +
-              'Please check your network connection to GitHub. ' +
-              'Alternatively, you can manually download from: ' +
-              'https://github.com/cloudflare/cloudflared/releases'
+                'Please check your network connection to GitHub. ' +
+                'Alternatively, you can manually download from: ' +
+                'https://github.com/cloudflare/cloudflared/releases'
             );
           }
         } else {

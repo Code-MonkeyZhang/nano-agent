@@ -38,6 +38,7 @@ nano-agent/
 │   ├── llm-client/        # LLM 客户端适配器
 │   ├── schema/            # 数据模型定义
 │   ├── skills/            # 技能加载器
+│   ├── server/            # HTTP/WebSocket 服务器
 │   ├── tools/             # 内置工具集
 │   └── util/
 ├── config/
@@ -97,9 +98,45 @@ provider: "anthropic" # "anthropic" 或 "openai"
 enableLogging: false # 设置为 true 以启用日志记录功能，日志将保存在项目根目录的 logs/ 文件夹下
 ```
 
-### 指定工作空间
+## 🚀 使用方法
 
-如果你希望 Agent 仅在特定项目目录下操作（防止误删或误改其他文件），请使用：
+Nano Agent 支持两种运行模式：交互模式和服务器模式。
+
+### 查看帮助
+
+```bash
+nano-agent --help      # 查看主帮助
+nano-agent server --help # 查看 server 命令帮助
+```
+
+### 交互模式
+
+在当前目录启动交互模式：
+
+```bash
+nano-agent
+```
+
+在交互模式下，Agent 会显示提示符等待你的输入，支持多轮对话，并根据你的需求调用工具完成任务。输入 `exit`、`quit` 或 `q` 可以退出。
+
+### 服务器模式
+
+服务器模式启动 HTTP 和 WebSocket 服务器，提供 OpenAI 兼容的 API，便于集成到其他应用中。
+
+**启动服务器（默认启用公网访问）：**
+
+```bash
+nano-agent server
+```
+
+**仅本地访问（不启用公网 Tunnel）：**
+
+```bash
+nano-agent server --local
+```
+
+服务器启动后会自动选择可用端口并显示访问地址。如果配置文件中指定了端口且端口可用，将优先使用配置的端口；否则会自动在 3000-9999 范围内选择可用端口。
+
 
 ## 🔌 MCP 服务器
 

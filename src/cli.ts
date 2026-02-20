@@ -1,33 +1,15 @@
 /* eslint-disable no-console */
-import * as path from 'node:path';
-import * as fs from 'node:fs';
-import { Command } from 'commander';
-import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
 import { Config } from './config.js';
 import { Logger } from './util/logger.js';
 import { AgentCore } from './agent.js';
 import { renderConsoleEvents } from './ui/console.js';
 import { cleanupMcpConnections } from './tools/index.js';
-
-// ============ Utilities ============
-
-function getProjectVersion(): string {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const packageJsonPath = path.resolve(here, '..', 'package.json');
-  try {
-    const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
-      version?: unknown;
-    };
-    return typeof pkg.version === 'string' ? pkg.version : '0.0.0';
-  } catch {
-    return '0.0.0';
-  }
-}
+import { startServer, cleanup as cleanupServer } from './server/index.js';
 
 function printBanner(): void {
   const BOX_WIDTH = 58;
-  const bannerText = '🤖 Nano Agent - Multi-turn Interactive Session';
+  const bannerText = '🤖 Nano Agent - Personal LLM Agent';
 
   const bannerWidth = bannerText.length;
   const totalPadding = BOX_WIDTH - bannerWidth;
@@ -45,51 +27,6 @@ function printBanner(): void {
   console.log();
 }
 
-function parseArgs(): { workspace: string | undefined } {
-  const program = new Command();
-
-  program
-    .description('Nano Agent - AI assistant with file tools and MCP support')
-    .version(getProjectVersion(), '-v, --version')
-    .addHelpText(
-      'after',
-      `
-Examples:
-  nano-agent                              # Use current directory as workspace
-  nano-agent --workspace /path/to/dir     # Use specific workspace directory
-      `
-    );
-
-  program.option(
-    '-w, --workspace <dir>',
-    'Workspace directory (default: current directory)'
-  );
-
-  program.parse(process.argv);
-  const options = program.opts();
-
-  return {
-    workspace: options['workspace'] as string | undefined,
-  };
-}
-
-function resolveWorkspace(args: { workspace: string | undefined }): string {
-  let workspaceDir: string;
-
-  if (args.workspace) {
-    workspaceDir = path.resolve(args.workspace);
-  } else {
-    workspaceDir = process.cwd();
-  }
-
-  // Ensure the workspace directory exists
-  if (!fs.existsSync(workspaceDir)) {
-    fs.mkdirSync(workspaceDir, { recursive: true });
-  }
-
-  return workspaceDir;
-}
-
 // ============ Main Startup Logic ============
 
 /**
@@ -98,10 +35,11 @@ function resolveWorkspace(args: { workspace: string | undefined }): string {
  * The interactive loop handles user input, executes the agent, and
  * handles errors. Cleanup is performed on exit.
  *
- * @param {string} workspaceDir - The absolute path to the workspace directory for the session
  * @returns {Promise<void>} Resolves when the user exits the session (via 'exit', 'quit', 'q', or SIGINT)
  */
-async function runAgent(workspaceDir: string): Promise<void> {
+async function runAgent(): Promise<void> {
+  const workspaceDir = process.cwd();
+
   // Load Config
   const configPath = Config.findConfigFile('config.yaml');
   if (!configPath) {
@@ -183,16 +121,42 @@ async function runAgent(workspaceDir: string): Promise<void> {
   }
 }
 
-export async function run(): Promise<void> {
-  const args = parseArgs();
+/**
+ * Runs the Nano Agent server mode.
+ *
+ * The server mode starts an HTTP/WebSocket server that provides
+ * an OpenAI-compatible API for the agent.
+ *
+ * @param {boolean} enableTunnel - Whether to enable Cloudflare tunnel for public access
+ * @returns {Promise<void>} Resolves when the server is shut down
+ */
+async function runServer(enableTunnel: boolean): Promise<void> {
+  const onSigint = async (): Promise<void> => {
+    await cleanupServer();
+  };
 
-  let workspaceDir: string;
+  process.once('SIGINT', () => {
+    void onSigint();
+  });
+  process.once('SIGTERM', () => {
+    void cleanupServer();
+  });
+
   try {
-    workspaceDir = resolveWorkspace(args);
+    await startServer(enableTunnel);
   } catch (error) {
-    console.error(`❌ Error creating workspace directory: ${error}`);
+    console.error('❌ Error starting server:', error);
     process.exit(1);
   }
+}
 
-  await runAgent(workspaceDir);
+export async function run(
+  mode: 'interactive' | 'server',
+  enableTunnel = true
+): Promise<void> {
+  if (mode === 'server') {
+    await runServer(enableTunnel);
+  } else {
+    await runAgent();
+  }
 }

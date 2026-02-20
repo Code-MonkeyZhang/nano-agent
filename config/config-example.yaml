@@ -32,5 +32,5 @@ tools:
 # ===== OpenAI HTTP Server Configuration =====
 # Provides OpenAI-compatible HTTP API for external clients
 openaiHttpServer:
-  port: 3847    # HTTP server port
-  host: '0.0.0.0'   # Bind address (0.0.0.0 = all interfaces)
+  # Optional: HTTP server port. If not specified or port is in use, an available port will be automatically selected.
+  # port: 3847
