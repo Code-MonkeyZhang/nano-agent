@@ -75,9 +75,22 @@ export async function startTunnel(localPort: number): Promise<string> {
         console.log('[Tunnel] Starting cloudflared...');
         console.log('[Tunnel] Binary at:', binPath);
 
+        // Check if binary exists, skip installation if it does
         if (!existsSync(binPath)) {
-          console.log('[Tunnel] Installing binary...');
-          await cloudflared.install(binPath);
+          console.log('[Tunnel] Binary not found, installing...');
+          try {
+            await cloudflared.install(binPath);
+          } catch (installError) {
+            console.error('[Tunnel] Failed to install binary:', installError);
+            throw new Error(
+              'Failed to download cloudflared binary. ' +
+              'Please check your network connection to GitHub. ' +
+              'Alternatively, you can manually download from: ' +
+              'https://github.com/cloudflare/cloudflared/releases'
+            );
+          }
+        } else {
+          console.log('[Tunnel] Binary already exists, skipping installation');
         }
 
         const proc = spawn(

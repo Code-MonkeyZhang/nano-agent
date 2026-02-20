@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { Logger } from './util/logger.js';
 import { LLMClient } from './llm-client/llm-client.js';
 import { Config } from './config.js';
@@ -17,6 +18,61 @@ import {
 } from './tools/index.js';
 import type { Message, ToolCall, AgentEvent } from './schema/index.js';
 import { SkillLoader, GetSkillTool } from './skills/index.js';
+
+/**
+ * Find the project root directory by searching for package.json.
+ * Starts from the current file location and searches upward.
+ *
+ * @returns The absolute path to the project root directory
+ * @throws Error if package.json cannot be found
+ */
+function findProjectRoot(): string {
+  let currentDir = path.dirname(fileURLToPath(import.meta.url));
+
+  while (true) {
+    const packageJsonPath = path.join(currentDir, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      return currentDir;
+    }
+
+    const parentDir = path.resolve(currentDir, '..');
+    if (parentDir === currentDir) {
+      throw new Error(
+        'Cannot find project root (package.json not found)'
+      );
+    }
+    currentDir = parentDir;
+  }
+}
+
+/**
+ * Find skills directory with fallback mechanism.
+ *
+ * Search order:
+ * 1. Config-specified directory (relative to CWD)
+ * 2. Package installation directory (built-in skills)
+ *
+ * @param skillsDirConfig - The skillsDir from config (default: './skills')
+ * @returns The absolute path to skills directory
+ */
+function findSkillsDir(skillsDirConfig: string): string {
+  const cwdSkillsDir = path.resolve(skillsDirConfig);
+  if (fs.existsSync(cwdSkillsDir)) {
+    return cwdSkillsDir;
+  }
+
+  const projectRoot = findProjectRoot();
+  const packageSkillsDir = path.join(projectRoot, 'skills');
+
+  if (fs.existsSync(packageSkillsDir)) {
+    console.log(
+      `[AgentCore] 📦 Using built-in skills from: ${packageSkillsDir}`
+    );
+    return packageSkillsDir;
+  }
+
+  return cwdSkillsDir;
+}
 
 function buildSystemPrompt(basePrompt: string, workspaceDir: string): string {
   if (basePrompt.includes('Current Workspace')) {
@@ -110,8 +166,9 @@ export class AgentCore {
 
   private async loadSkills(): Promise<void> {
     console.log('[AgentCore] Loading Skills...');
-    const skillsDir = this.config.tools.skillsDir;
+    const skillsDir = findSkillsDir(this.config.tools.skillsDir);
 
+    // Create directory if neither CWD nor package directory has skills
     if (!fs.existsSync(skillsDir)) {
       console.log(
         `[AgentCore] ⚠️  Skills directory does not exist: ${skillsDir}`
