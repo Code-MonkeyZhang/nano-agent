@@ -4,6 +4,7 @@ import { createServer as createHttpServer } from 'http';
 import { Config } from '../config.js';
 import { AgentCore } from '../agent.js';
 import { createChatRouter } from './routes/chat.js';
+import { Logger } from '../util/logger.js';
 
 const app = express();
 
@@ -15,17 +16,29 @@ export function getGlobalAgent(): AgentCore | null {
 
 app.use(express.json());
 
+app.use((req, _res, next) => {
+  Logger.log('HTTP', `${req.method} ${req.path}`);
+  next();
+});
+
 /**
  * Setup OpenAI compatible routes to chat router
  * @param config - The agent configuration
  * @param workspaceDir - The workspace directory
  */
 export async function setupOpenAIRoutes(config: Config, workspaceDir: string) {
+  Logger.log('HTTP', 'Setting up routes', {
+    workspaceDir,
+    model: config.llm.model,
+  });
+
   // init agent core
   globalAgent = new AgentCore(config, workspaceDir);
   await globalAgent.initialize();
 
   app.use('/v1/chat', createChatRouter());
+
+  Logger.log('HTTP', 'Routes configured');
 }
 
 /**

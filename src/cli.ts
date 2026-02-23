@@ -51,7 +51,7 @@ async function runAgent(): Promise<void> {
   console.log(`Workspace: ${workspaceDir}`);
 
   if (config.logging.enableLogging) {
-    Logger.initialize();
+    Logger.initialize(undefined, 'agent');
   }
 
   printBanner();

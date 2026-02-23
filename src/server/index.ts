@@ -5,6 +5,7 @@ import { httpServer, setupOpenAIRoutes } from './http-server.js';
 import { initWebSocket, shutdownWebSocket } from './websocket-server.js';
 import { startTunnel, stopTunnel } from './tunnel.service.js';
 import { Config } from '../config.js';
+import { Logger } from '../util/logger.js';
 
 // ============ Utilities ============
 
@@ -46,6 +47,12 @@ const config = Config.fromYaml(configPath!);
 export async function startServer(enableTunnel = true): Promise<void> {
   const workspaceDir = process.cwd();
 
+  // Initialize logger if enabled in config (same as interactive mode)
+  if (config.logging.enableLogging) {
+    Logger.initialize(undefined, 'server');
+    Logger.log('SERVER', 'Starting server', { workspaceDir, enableTunnel });
+  }
+
   // Ensure workspace directory exists
   if (!fs.existsSync(workspaceDir)) {
     fs.mkdirSync(workspaceDir, { recursive: true });
@@ -63,20 +70,38 @@ export async function startServer(enableTunnel = true): Promise<void> {
     }
     port = await getAvailablePort();
   }
+  if (config.logging.enableLogging) {
+    Logger.log('SERVER', `Using port: ${port}`);
+  }
 
   await setupOpenAIRoutes(config, workspaceDir);
+  if (config.logging.enableLogging) {
+    Logger.log('SERVER', 'OpenAI routes configured');
+  }
 
   // Initialize WebSocket server
   initWebSocket();
+  if (config.logging.enableLogging) {
+    Logger.log('SERVER', 'WebSocket initialized');
+  }
 
   // Start HTTP server
   httpServer.listen(port, '0.0.0.0', () => {
+    if (config.logging.enableLogging) {
+      Logger.log('SERVER', `HTTP server listening on port ${port}`);
+    }
     if (enableTunnel) {
       startTunnel(port)
         .then((url) => {
+          if (config.logging.enableLogging) {
+            Logger.log('SERVER', `Tunnel started: ${url}`);
+          }
           printUrls(url, port);
         })
         .catch((error) => {
+          if (config.logging.enableLogging) {
+            Logger.log('SERVER', `Tunnel failed: ${error}`);
+          }
           console.warn('Tunnel failed to start:', error);
           printUrls(null, port);
         });
@@ -116,9 +141,15 @@ function printUrls(tunnelUrl: string | null, port: number): void {
  */
 export async function cleanup(): Promise<void> {
   console.log('Shutting down Nano Agent Server...');
+  if (config.logging.enableLogging) {
+    Logger.log('SERVER', 'Shutting down...');
+  }
 
   await stopTunnel();
   shutdownWebSocket();
 
+  if (config.logging.enableLogging) {
+    Logger.log('SERVER', 'Server stopped');
+  }
   process.exit(0);
 }
