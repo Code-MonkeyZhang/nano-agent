@@ -8,7 +8,6 @@ program
   .name('nano-agent')
   .description('Nano Agent - AI assistant with file tools and MCP support');
 
-
 program.action(() => {
   run('interactive', true).catch((error: unknown) => {
     console.error('Fatal error:', error);
