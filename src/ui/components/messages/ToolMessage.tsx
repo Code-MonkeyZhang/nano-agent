@@ -1,5 +1,5 @@
 import { Box, Text } from 'ink';
-import { theme, messageStyles } from '../../themes.js';
+import { theme } from '../../themes.js';
 
 interface ToolMessageProps {
   name: string;
@@ -24,7 +24,7 @@ export function ToolMessage({ name, result, success }: ToolMessageProps) {
     >
       <Box>
         <Text color={theme.text.accent} bold>
-          {messageStyles.tool.icon} {name}
+          🔧 {name}
         </Text>
         <Text> </Text>
         <Text color={borderColor}>
