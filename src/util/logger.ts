@@ -30,20 +30,16 @@ export class Logger {
   }
 
   static getLogsDirectory(): string {
-    const utilDir = path.dirname(fileURLToPath(import.meta.url));
-    const srcDir = path.join(utilDir, '..');
-    let projectRoot = path.join(srcDir, '..');
+    let currentDir = path.dirname(fileURLToPath(import.meta.url));
 
-    // If we're in dist directory, go up one more level
-    if (
-      path.basename(projectRoot) === 'dist' ||
-      utilDir.includes('dist') ||
-      fs.existsSync(path.join(projectRoot, 'dist', 'src', 'util', 'logger.js'))
-    ) {
-      projectRoot = path.join(projectRoot, '..');
+    while (currentDir !== path.dirname(currentDir)) {
+      if (fs.existsSync(path.join(currentDir, 'package.json'))) {
+        return path.join(currentDir, 'logs');
+      }
+      currentDir = path.dirname(currentDir);
     }
 
-    return path.join(projectRoot, 'logs');
+    return path.join(currentDir, 'logs');
   }
 
   static getMode(): 'agent' | 'server' {
