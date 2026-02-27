@@ -17,8 +17,6 @@ export function InputPrompt({ onSubmit, isStreaming }: InputPromptProps) {
     // char: 按下的字符
     // key: 包含修饰键信息的对象 { return, backspace, ctrl, meta, ... }
     (char, key) => {
-      if (isStreaming) return; // ban all input if streaming
-
       // 回车键submit
       if (key.return) {
         const trimmed = input.trim();
@@ -50,7 +48,6 @@ export function InputPrompt({ onSubmit, isStreaming }: InputPromptProps) {
       <Box flexGrow={1} flexDirection="row">
         <Text color={theme.text.accent}>&gt; </Text>
         <Box flexGrow={1}>
-          {/*  */}
           {isInputEmpty ? (
             <Text color={theme.text.secondary} dimColor>
               {placeholder}
@@ -58,11 +55,10 @@ export function InputPrompt({ onSubmit, isStreaming }: InputPromptProps) {
           ) : (
             <Text>
               {input}
-              {!isStreaming && <Text color={theme.text.accent}>▋</Text>}
+              {<Text color={theme.text.accent}>▋</Text>}
             </Text>
           )}
         </Box>
-        {isStreaming && <Text color={theme.status.warning}> ⏳</Text>}
       </Box>
     </HalfLinePaddedBox>
   );
