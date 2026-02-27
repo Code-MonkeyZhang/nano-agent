@@ -1,4 +1,5 @@
 import { Box, Text } from 'ink';
+import { theme } from '../../themes.js';
 
 interface ErrorMessageProps {
   text: string;
@@ -6,11 +7,17 @@ interface ErrorMessageProps {
 
 export function ErrorMessage({ text }: ErrorMessageProps) {
   return (
-    <Box marginBottom={1}>
-      <Text color="red" bold>
-        ❌ Error:{' '}
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderColor={theme.status.error}
+      paddingX={1}
+      marginY={1}
+    >
+      <Text color={theme.status.error} bold>
+        ✗ Error
       </Text>
-      <Text color="red">{text}</Text>
+      <Text color={theme.status.error}>{text}</Text>
     </Box>
   );
 }

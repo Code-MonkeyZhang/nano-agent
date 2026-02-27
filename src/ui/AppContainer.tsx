@@ -11,6 +11,7 @@ interface AppContainerProps {
   agent: AgentCore;
 }
 
+// AppContainer主要保存业务逻辑
 export function AppContainer({ agent }: AppContainerProps) {
   const { stdout } = useStdout(); // 获取终端窗口的“宽高”
 

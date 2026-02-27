@@ -47,6 +47,11 @@ export interface UIState {
   terminalHeight: number;
   currentModel: string;
   currentProvider: string;
+  streamingMessage?: string;
+  lastToolExecution?: {
+    name: string;
+    status: 'running' | 'success' | 'failed';
+  };
 }
 
 export interface UIActions {

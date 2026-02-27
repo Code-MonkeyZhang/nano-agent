@@ -1,56 +1,31 @@
-import { Box, Text } from 'ink';
+import { Box } from 'ink';
 import { useUIState } from './contexts/UIStateContext.js';
 import { useUIActions } from './contexts/UIActionsContext.js';
 import { HistoryList } from './components/HistoryList.js';
 import { InputPrompt } from './components/InputPrompt.js';
+import { Footer } from './components/Footer.js';
 
+// App.tsx 复杂展示组件
 export function App() {
-  const {
-    history,
-    streamingState,
-    terminalWidth,
-    currentModel,
-    currentProvider,
-  } = useUIState();
+  const { history, streamingState, currentModel } = useUIState();
   const { submitInput } = useUIActions();
 
+  const workspace = process.cwd(); // 这个是否应该考虑从 AgentCore获取?
+
+  // UI结构:
+  // - HistoryList
+  // - InputBox
+  // - Footer
   return (
-    <Box flexDirection="column" width={terminalWidth} paddingX={1}>
-      {/* 标题 */}
-      <Box marginBottom={1}>
-        <Text bold color="magenta">
-          🤖 Nano Agent
-        </Text>
-        <Text color="gray">
-          {' '}
-          | {currentProvider} | {currentModel}
-        </Text>
-      </Box>
-
-      {/* 分隔线 */}
-      <Box marginBottom={1}>
-        <Text color="gray">{'─'.repeat(Math.min(terminalWidth - 2, 60))}</Text>
-      </Box>
-
-      {/* 消息历史 */}
-      <Box flexDirection="column" flexGrow={1}>
-        <HistoryList items={history} />
-      </Box>
-
-      {/* 流式响应指示器 */}
-      {streamingState === 'streaming' && (
-        <Box marginBottom={1}>
-          <Text color="yellow">⏳ Agent is thinking...</Text>
-        </Box>
-      )}
-
-      {/* 输入框 */}
+    <Box flexDirection="column" flexGrow={1}>
+      <HistoryList items={history} />
       <Box marginTop={1}>
         <InputPrompt
           onSubmit={submitInput}
           isStreaming={streamingState === 'streaming'}
         />
       </Box>
+      <Footer workspace={workspace} model={currentModel} />
     </Box>
   );
 }
