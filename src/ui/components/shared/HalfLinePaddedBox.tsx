@@ -27,7 +27,7 @@ export function HalfLinePaddedBox({
       {/* 上边框：用 ▄ 字符重复铺满，颜色与背景色相同产生"隐形线"效果 */}
       <Text color={backgroundColor}>{'▄'.repeat(terminalWidth)}</Text>
 
-      <Box paddingX={1} width={terminalWidth}>
+      <Box paddingX={1} width={terminalWidth} backgroundColor={backgroundColor}>
         {children}
       </Box>
 
