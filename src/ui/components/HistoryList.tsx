@@ -1,5 +1,6 @@
 import { Box, Text } from 'ink';
 import type { HistoryItem } from '../types.js';
+import { useUIState } from '../contexts/UIStateContext.js';
 import { UserMessage } from './messages/UserMessage.js';
 import { AgentMessage } from './messages/AgentMessage.js';
 import { ToolMessage } from './messages/ToolMessage.js';
@@ -12,7 +13,8 @@ interface HistoryListProps {
 }
 
 export function HistoryList({ items }: HistoryListProps) {
-  // 只在没有内容的时候, 在开头显示
+  const { terminalWidth } = useUIState();
+
   if (items.length === 0) {
     return (
       <Box paddingY={1}>
@@ -25,13 +27,18 @@ export function HistoryList({ items }: HistoryListProps) {
 
   return (
     <Box flexDirection="column" flexGrow={1}>
-      {/* 遍历渲染不同种类的Message */}
       {items.map((item, index) => {
         switch (item.type) {
           case 'user':
             return <UserMessage key={index} text={item.text} />;
           case 'agent':
-            return <AgentMessage key={index} text={item.text} />;
+            return (
+              <AgentMessage
+                key={index}
+                text={item.text}
+                terminalWidth={terminalWidth}
+              />
+            );
           case 'tool':
             return (
               <ToolMessage

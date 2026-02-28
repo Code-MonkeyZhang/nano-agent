@@ -3,6 +3,7 @@ import { useStdout } from 'ink';
 import { App } from './App.js';
 import { UIStateContext } from './contexts/UIStateContext.js';
 import { UIActionsContext } from './contexts/UIActionsContext.js';
+import { KeypressProvider } from './contexts/KeypressContext.js';
 import type { HistoryItem, StreamingState } from './types.js';
 import type { AgentCore } from '../agent.js';
 import type { AgentEvent } from '../schema/events.js';
@@ -159,10 +160,12 @@ export function AppContainer({ agent }: AppContainerProps) {
   };
 
   return (
-    <UIStateContext.Provider value={state}>
-      <UIActionsContext.Provider value={actions}>
-        <App />
-      </UIActionsContext.Provider>
-    </UIStateContext.Provider>
+    <KeypressProvider>
+      <UIStateContext.Provider value={state}>
+        <UIActionsContext.Provider value={actions}>
+          <App />
+        </UIActionsContext.Provider>
+      </UIStateContext.Provider>
+    </KeypressProvider>
   );
 }
