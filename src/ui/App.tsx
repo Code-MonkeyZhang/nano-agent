@@ -4,21 +4,21 @@ import { useUIActions } from './contexts/UIActionsContext.js';
 import { HistoryList } from './components/HistoryList.js';
 import { InputPrompt } from './components/InputPrompt.js';
 import { Footer } from './components/Footer.js';
+import type { AgentCore } from '../agent.js';
 
-// App.tsx 复杂展示组件
-export function App() {
+interface AppProps {
+  agent: AgentCore;
+}
+
+export function App({ agent }: AppProps) {
   const { history, streamingState, currentModel } = useUIState();
   const { submitInput } = useUIActions();
 
-  const workspace = process.cwd(); // 这个是否应该考虑从 AgentCore获取?
+  const workspace = agent.workspaceDir;
 
-  // UI结构:
-  // - HistoryList
-  // - InputBox
-  // - Footer
   return (
     <Box flexDirection="column" flexGrow={1}>
-      <HistoryList items={history} />
+      <HistoryList items={history} agent={agent} />
       <Box marginTop={1}>
         <InputPrompt
           onSubmit={submitInput}

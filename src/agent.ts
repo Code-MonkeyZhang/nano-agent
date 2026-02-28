@@ -91,6 +91,7 @@ export class AgentCore {
   public messages: Message[] = [];
   public workspaceDir: string;
   public tools: Map<string, Tool> = new Map();
+  private skillLoader?: SkillLoader;
 
   constructor(config: Config, workspaceDir: string) {
     this.config = config;
@@ -175,12 +176,12 @@ export class AgentCore {
     }
 
     try {
-      const skillLoader = new SkillLoader(skillsDir);
-      const discoveredSkills = skillLoader.discoverSkills();
+      this.skillLoader = new SkillLoader(skillsDir);
+      const discoveredSkills = this.skillLoader.discoverSkills();
 
       if (discoveredSkills.length > 0) {
-        this.tools.set('get_skill', new GetSkillTool(skillLoader));
-        const skillsMetadata = skillLoader.getSkillsMetadataPrompt();
+        this.tools.set('get_skill', new GetSkillTool(this.skillLoader));
+        const skillsMetadata = this.skillLoader.getSkillsMetadataPrompt();
         this.systemPrompt += `\n\n${skillsMetadata}`;
         Logger.log(
           'startup',
@@ -240,6 +241,10 @@ export class AgentCore {
 
   listTools(): Tool[] {
     return Array.from(this.tools.values());
+  }
+
+  listSkills(): string[] {
+    return this.skillLoader?.listSkills() ?? [];
   }
 
   async executeTool(

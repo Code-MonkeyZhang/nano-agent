@@ -30,6 +30,35 @@ export interface HistoryItemThinking {
 export interface HistoryItemError {
   type: 'error';
   text: string;
+  code?: string;
+  suggestion?: string;
+  timestamp: number;
+}
+
+export interface HistoryItemCommand {
+  type: 'command';
+  content: string;
+  messageType: 'info' | 'error';
+  timestamp: number;
+}
+
+export interface HistoryItemHelp {
+  type: 'help';
+  timestamp: number;
+}
+
+export interface HistoryItemAbout {
+  type: 'about';
+  timestamp: number;
+}
+
+export interface HistoryItemMcp {
+  type: 'mcp';
+  timestamp: number;
+}
+
+export interface HistoryItemSkill {
+  type: 'skill';
   timestamp: number;
 }
 
@@ -38,7 +67,12 @@ export type HistoryItem =
   | HistoryItemAgent
   | HistoryItemTool
   | HistoryItemThinking
-  | HistoryItemError;
+  | HistoryItemError
+  | HistoryItemCommand
+  | HistoryItemHelp
+  | HistoryItemAbout
+  | HistoryItemMcp
+  | HistoryItemSkill;
 
 export interface UIState {
   history: HistoryItem[];

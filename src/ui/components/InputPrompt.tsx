@@ -12,17 +12,11 @@ interface InputPromptProps {
   isStreaming: boolean;
 }
 
-/**
- * 终端输入框组件
- */
 export function InputPrompt({ onSubmit, isStreaming }: InputPromptProps) {
   const [input, setInput] = useState('');
   const [cursorPos, setCursorPos] = useState(0);
-  const placeholder = '  Type your message or @path/to/file';
+  const placeholder = '  Type your message...';
 
-  /**
-   * 在光标位置插入文本
-   */
   const insertAtCursor = useCallback(
     (text: string) => {
       setInput((prev) => {
@@ -35,9 +29,6 @@ export function InputPrompt({ onSubmit, isStreaming }: InputPromptProps) {
     [cursorPos]
   );
 
-  /**
-   * 删除光标前的字符
-   */
   const deleteBeforeCursor = useCallback(() => {
     if (cursorPos === 0) return;
     setInput((prev) => {
@@ -48,9 +39,6 @@ export function InputPrompt({ onSubmit, isStreaming }: InputPromptProps) {
     setCursorPos((prev) => prev - 1);
   }, [cursorPos]);
 
-  /**
-   * 提交输入
-   */
   const submit = useCallback(() => {
     const trimmed = input.trim();
     if (trimmed) {
@@ -60,19 +48,14 @@ export function InputPrompt({ onSubmit, isStreaming }: InputPromptProps) {
     }
   }, [input, onSubmit]);
 
-  /**
-   * 键盘事件处理
-   */
   useKeypress((key) => {
     if (isStreaming) return false;
 
-    // 回车提交
     if (key.name === 'return') {
       submit();
       return true;
     }
 
-    // 左箭头 - 光标左移
     if (key.name === 'left') {
       if (cursorPos > 0) {
         setCursorPos((prev) => prev - 1);
@@ -80,7 +63,6 @@ export function InputPrompt({ onSubmit, isStreaming }: InputPromptProps) {
       return true;
     }
 
-    // 右箭头 - 光标右移
     if (key.name === 'right') {
       const length = cpLen(input);
       if (cursorPos < length) {
@@ -89,13 +71,11 @@ export function InputPrompt({ onSubmit, isStreaming }: InputPromptProps) {
       return true;
     }
 
-    // 退格/删除 - 删除光标前字符
     if (key.name === 'backspace' || key.name === 'delete') {
       deleteBeforeCursor();
       return true;
     }
 
-    // 普通字符 - 在光标位置插入
     if (key.insertable) {
       insertAtCursor(key.sequence);
       return true;
@@ -107,20 +87,7 @@ export function InputPrompt({ onSubmit, isStreaming }: InputPromptProps) {
   const isInputEmpty = input.length === 0;
   const bgColor = '#585959';
 
-  /**
-   * 渲染输入内容
-   * 核心思路：把字符串切成三段，用反色显示中间那段来模拟光标
-   *
-   * 假设 input = "hello", cursorPos = 2
-   * 三段分割：
-   *   - textBeforeCursor = "he"     (索引 0 到 2，不含 2)
-   *   - charAtCursor     = "l"      (索引 2)
-   *   - 光标后的文本      = "lo"     (索引 3 开始)
-   *
-   * 渲染结果：he[l]o （l 用反色显示）
-   */
   const renderContent = () => {
-    // 没有输入时 显示占位符
     if (isInputEmpty) {
       return (
         <Text
@@ -135,16 +102,14 @@ export function InputPrompt({ onSubmit, isStreaming }: InputPromptProps) {
       );
     }
 
-    // 把字符串切成三段
-    const textBeforeCursor = cpSlice(input, 0, cursorPos); // 光标前的文本
-    const visualCursorPos = stringWidth(textBeforeCursor); // 视觉位置（处理中文/emoji）
-    const charAtCursor = cpSlice(input, cursorPos, cursorPos + 1); // 光标位置的字符
-    const textAfterCursor = cpSlice(input, cursorPos + 1); // 光标后的文本
+    const textBeforeCursor = cpSlice(input, 0, cursorPos);
+    const visualCursorPos = stringWidth(textBeforeCursor);
+    const charAtCursor = cpSlice(input, cursorPos, cursorPos + 1);
+    const textAfterCursor = cpSlice(input, cursorPos + 1);
 
     return (
       <Text terminalCursorFocus={true} terminalCursorPosition={visualCursorPos}>
         {textBeforeCursor}
-        {/* 光标：反色显示当前字符，或显示反色空格 */}
         {charAtCursor ? chalk.inverse(charAtCursor) : chalk.inverse(' ')}
         {textAfterCursor}
       </Text>
