@@ -4,6 +4,7 @@ import { aboutCommand } from './builtins/about.js';
 import { repoCommand } from './builtins/repo.js';
 import { mcpCommand } from './builtins/mcp.js';
 import { skillCommand } from './builtins/skill.js';
+import { serverCommands } from './builtins/server.js';
 
 export interface ParsedCommand {
   command: SlashCommand | null;
@@ -26,6 +27,7 @@ export class CommandRegistry {
       repoCommand,
       mcpCommand,
       skillCommand,
+      ...serverCommands,
     ];
 
     for (const cmd of builtins) {

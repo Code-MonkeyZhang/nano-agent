@@ -1,15 +1,18 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useStdout } from 'ink';
 import { App } from './App.js';
 import { UIStateContext } from './contexts/UIStateContext.js';
 import { UIActionsContext } from './contexts/UIActionsContext.js';
 import { KeypressProvider } from './contexts/KeypressContext.js';
-import type { HistoryItem, StreamingState } from './types.js';
+import type { HistoryItem, StreamingState, ServerState } from './types.js';
 import type { AgentCore } from '../agent.js';
 import type { AgentEvent } from '../schema/events.js';
 import { getCommandRegistry } from '../commands/CommandRegistry.js';
 import type { CommandResult } from '../commands/types.js';
 import { parseError } from '../util/error-parser.js';
+import { getServerManager } from '../server/index.js';
+
+const initialServerState: ServerState = { status: 'stopped' };
 
 interface AppContainerProps {
   agent: AgentCore;
@@ -17,15 +20,24 @@ interface AppContainerProps {
 
 // AppContainer主要保存业务逻辑
 export function AppContainer({ agent }: AppContainerProps) {
-  const { stdout } = useStdout(); // 获取终端窗口的“宽高”
+  const { stdout } = useStdout();
 
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [streamingState, setStreamingState] = useState<StreamingState>('idle');
+  const [serverState, setServerState] =
+    useState<ServerState>(initialServerState);
 
   const terminalWidth = stdout.columns ?? 80;
-  const terminalHeight = stdout.rows ?? 24;
   const currentModel = agent.config.llm.model;
-  const currentProvider = agent.config.llm.provider;
+
+  // 初始化server监听
+  useEffect(() => {
+    const manager = getServerManager();
+    manager.onStatusChange((state) => {
+      setServerState(state);
+    });
+    setServerState(manager.getState());
+  }, []);
 
   const handleCommandResult = useCallback(
     (result: CommandResult) => {
@@ -84,6 +96,16 @@ export function AppContainer({ agent }: AppContainerProps) {
               type: 'command',
               content: result.message,
               messageType: 'info' as const,
+              timestamp: Date.now(),
+            },
+          ]);
+          break;
+        case 'server_status':
+          setHistory((prev) => [
+            ...prev,
+            {
+              type: 'server_status',
+              state: result.state,
               timestamp: Date.now(),
             },
           ]);
@@ -242,22 +264,16 @@ export function AppContainer({ agent }: AppContainerProps) {
     [agent, handleCommandResult]
   );
 
-  const clearHistory = useCallback(() => {
-    setHistory([]);
-  }, []);
-
   const state = {
     history,
     streamingState,
     terminalWidth,
-    terminalHeight,
     currentModel,
-    currentProvider,
+    serverState,
   };
 
   const actions = {
     submitInput,
-    clearHistory,
   };
 
   return (

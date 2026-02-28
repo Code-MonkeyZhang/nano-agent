@@ -1,4 +1,5 @@
 import type { AgentCore } from '../agent.js';
+import type { ServerState } from '../ui/types.js';
 
 export enum CommandKind {
   BUILT_IN = 'built-in',
@@ -11,6 +12,7 @@ export type CommandResult =
   | { type: 'about' }
   | { type: 'mcp' }
   | { type: 'skill' }
+  | { type: 'server_status'; state: ServerState }
   | { type: 'open_url'; url: string; message: string };
 
 export interface CommandContext {
