@@ -5,10 +5,9 @@
  * 采用发布-订阅模式，多个组件可以同时订阅键盘事件，而无需重复监听终端输入。
  *
  * 主要功能：
- * - 统一管理终端原始输入模式 (raw mode)
- * - 解析终端原始按键为结构化 Key 对象
+ * - 设置终端为raw mode, 直接接受键盘输入 不必打回车
+ * - 解析按键输入为 Key 对象
  * - 通过 React Context 提供订阅/取消订阅接口
- * - 支持事件冒泡中断（某个 handler 返回 true 停止传播）
  */
 
 import {
@@ -21,7 +20,7 @@ import {
 import { useStdin } from 'ink';
 
 /**
- * Key - 按键结构
+ * Key 对象结构
  * @property name - 按键名称，如 'return', 'backspace', 'delete'，普通字符为空字符串
  * @property ctrl - 是否按下了 Ctrl 修饰键
  * @property sequence - 原始字符序列
@@ -63,11 +62,30 @@ export function useKeypressContext(): KeypressContextValue {
   return ctx;
 }
 
-// 处理输入, 将原始输入转化为Key对象
+/**
+ * 将终端原始输入转换为结构化 Key 对象
+ *
+ * 支持两种终端模式, 以煎肉所有主流终端
+ * - Normal mode: - VT100/xterm 标准，Linux console 默认
+ * - Application mode: - macOS Terminal、iTerm2 等使用
+ *
+ * 支持的按键：
+ * - 回车: \r, \n
+ * - 退格: \x7f, \b
+ * - 删除: \x1b[3~
+ * - 左箭头: \x1b[D, \x1bOD
+ * - 右箭头: \x1b[C, \x1bOC
+ * - 普通字符: 可打印字符
+ * - Ctrl 组合键: ASCII 控制字符
+ *
+ */
 function parseKey(data: string): Key {
+  // 回车键
   if (data === '\r' || data === '\n') {
     return { name: 'return', ctrl: false, sequence: data, insertable: false };
   }
+
+  // 退格键 (Backspace)
   if (data === '\x7f' || data === '\b') {
     return {
       name: 'backspace',
@@ -76,17 +94,32 @@ function parseKey(data: string): Key {
       insertable: false,
     };
   }
+
+  // 删除键 (Delete)
   if (data === '\x1b[3~') {
     return { name: 'delete', ctrl: false, sequence: data, insertable: false };
   }
 
+  // 左箭头
+  if (data === '\x1b[D' || data === '\x1bOD') {
+    return { name: 'left', ctrl: false, sequence: data, insertable: false };
+  }
+
+  // 右箭头
+  if (data === '\x1b[C' || data === '\x1bOC') {
+    return { name: 'right', ctrl: false, sequence: data, insertable: false };
+  }
+
+  // 判断是否为 Ctrl 组合键
   const ch = data[0];
   const ctrl = ch < ' ' && ch !== '\r' && ch !== '\n';
 
+  // 普通可打印字符
   if (!ctrl && data.length > 0) {
     return { name: '', ctrl: false, sequence: data, insertable: true };
   }
 
+  // 其他 Ctrl 组合键
   return { name: '', ctrl, sequence: data, insertable: false };
 }
 
@@ -120,7 +153,6 @@ export function KeypressProvider({ children }: { children: React.ReactNode }) {
 
   // 设置键盘事件监听
   useEffect(() => {
-    // 开启原始模式：终端输入立即传递给程序，不等待回车键
     setRawMode(true);
 
     // 设置 stdin 编码为 UTF-8，正确处理中文等 Unicode 字符
@@ -131,9 +163,9 @@ export function KeypressProvider({ children }: { children: React.ReactNode }) {
       // 将原始输入转换为结构化的 Key 对象
       const key = parseKey(data);
 
-      // 遍历所有订阅者，依次调用他们的处理函数
+      // 遍历订阅者，依次调用处理函数
       for (const handler of subscribers.current) {
-        // 如果处理函数返回 true，表示事件已被处理，停止传播给其他订阅者
+        // handler返回 true，表示事件已被处理，则停止传播
         if (handler(key) === true) {
           break;
         }
@@ -143,7 +175,6 @@ export function KeypressProvider({ children }: { children: React.ReactNode }) {
     // 监听终端输入事件
     stdin.on('data', onData);
 
-    // 组件卸载时清理：移除事件监听，恢复终端默认模式
     return () => {
       stdin.off('data', onData);
       setRawMode(false);
