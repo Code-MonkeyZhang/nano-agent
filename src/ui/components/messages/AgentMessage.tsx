@@ -1,19 +1,18 @@
 import { Box, Text } from 'ink';
 import { theme } from '../../themes.js';
+import { MarkdownDisplay } from '../../utils/MarkdownDisplay.js';
 
-/**
- * Agent response component.
- * Layout: Left side shows prefix "✦ " with fixed width (2),
- * right side shows content with flexible width.
- *
- * Example:
- * ✦ This is Agent's response
- */
+const DEFAULT_TERMINAL_WIDTH = 80;
+
 interface AgentMessageProps {
   text: string;
+  terminalWidth?: number;
 }
 
-export function AgentMessage({ text }: AgentMessageProps) {
+export function AgentMessage({
+  text,
+  terminalWidth = DEFAULT_TERMINAL_WIDTH,
+}: AgentMessageProps) {
   const prefix = '✦ ';
 
   return (
@@ -21,8 +20,8 @@ export function AgentMessage({ text }: AgentMessageProps) {
       <Box width={2} flexShrink={0}>
         <Text color={theme.text.accent}>{prefix}</Text>
       </Box>
-      <Box flexGrow={1}>
-        <Text wrap="wrap">{text}</Text>
+      <Box flexGrow={1} flexDirection="column">
+        <MarkdownDisplay text={text} terminalWidth={terminalWidth - 2} />
       </Box>
     </Box>
   );
