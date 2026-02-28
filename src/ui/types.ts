@@ -50,6 +50,16 @@ export interface HistoryItemAbout {
   timestamp: number;
 }
 
+export interface HistoryItemMcp {
+  type: 'mcp';
+  timestamp: number;
+}
+
+export interface HistoryItemSkill {
+  type: 'skill';
+  timestamp: number;
+}
+
 export type HistoryItem =
   | HistoryItemUser
   | HistoryItemAgent
@@ -58,7 +68,9 @@ export type HistoryItem =
   | HistoryItemError
   | HistoryItemCommand
   | HistoryItemHelp
-  | HistoryItemAbout;
+  | HistoryItemAbout
+  | HistoryItemMcp
+  | HistoryItemSkill;
 
 export interface UIState {
   history: HistoryItem[];

@@ -9,6 +9,8 @@ export type CommandResult =
   | { type: 'message'; content: string; messageType: 'info' | 'error' }
   | { type: 'help' }
   | { type: 'about' }
+  | { type: 'mcp' }
+  | { type: 'skill' }
   | { type: 'open_url'; url: string; message: string };
 
 export interface CommandContext {

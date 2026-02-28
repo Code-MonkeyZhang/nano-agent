@@ -119,3 +119,7 @@ export async function cleanupMcpConnections(): Promise<void> {
   }
   mcpConnections.length = 0;
 }
+
+export function getMcpConnections(): MCPServerConnection[] {
+  return mcpConnections;
+}

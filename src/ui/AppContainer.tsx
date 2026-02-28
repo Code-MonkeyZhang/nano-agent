@@ -58,6 +58,24 @@ export function AppContainer({ agent }: AppContainerProps) {
             },
           ]);
           break;
+        case 'mcp':
+          setHistory((prev) => [
+            ...prev,
+            {
+              type: 'mcp',
+              timestamp: Date.now(),
+            },
+          ]);
+          break;
+        case 'skill':
+          setHistory((prev) => [
+            ...prev,
+            {
+              type: 'skill',
+              timestamp: Date.now(),
+            },
+          ]);
+          break;
         case 'open_url':
           setHistory((prev) => [
             ...prev,

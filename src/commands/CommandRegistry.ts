@@ -2,6 +2,8 @@ import type { SlashCommand, CommandContext, CommandResult } from './types.js';
 import { helpCommand } from './builtins/help.js';
 import { aboutCommand } from './builtins/about.js';
 import { repoCommand } from './builtins/repo.js';
+import { mcpCommand } from './builtins/mcp.js';
+import { skillCommand } from './builtins/skill.js';
 
 export interface ParsedCommand {
   command: SlashCommand | null;
@@ -18,7 +20,13 @@ export class CommandRegistry {
   }
 
   private registerBuiltins(): void {
-    const builtins: SlashCommand[] = [helpCommand, aboutCommand, repoCommand];
+    const builtins: SlashCommand[] = [
+      helpCommand,
+      aboutCommand,
+      repoCommand,
+      mcpCommand,
+      skillCommand,
+    ];
 
     for (const cmd of builtins) {
       this.register(cmd);
