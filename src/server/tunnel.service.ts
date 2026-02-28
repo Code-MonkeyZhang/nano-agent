@@ -1,5 +1,6 @@
 import { ChildProcess, spawn } from 'child_process';
 import { existsSync } from 'fs';
+import { Logger } from '../util/logger.js';
 
 interface TunnelState {
   process: ChildProcess | null;
@@ -18,12 +19,6 @@ const state: TunnelState = {
 type StatusCallback = (status: TunnelState) => void;
 let statusCallback: StatusCallback | null = null;
 
-/**
- * Get the path to the cloudflared binary
- * Handles ASAR unpacking for Electron apps
- * @returns {Promise<string>} The absolute path to the cloudflared binary
- * @throws {Error} If cloudflared cannot be imported
- */
 async function getBinaryPath(): Promise<string> {
   try {
     const cloudflared = await import('cloudflared');
@@ -40,18 +35,9 @@ async function getBinaryPath(): Promise<string> {
 }
 
 /**
- * Start a Cloudflare tunnel to expose the local server publicly
- * Automatically installs cloudflared binary if not,
- * Parses stdout/stderr to extract the public URL
- * Times out after 30 seconds if URL is not found
- *
- * @param {number} localPort - The local port to tunnel (e.g., 3847)
- * @returns {Promise<string>} The public tunnel URL (e.g., https://xxx.trycloudflare.com)
- * @throws {Error} If tunnel fails to start or times out
- *
- * @example
- * const url = await startTunnel(3847);
- * console.log(`Public URL: ${url}`);
+ * 启动 Cloudflare Tunnel
+ * @param localPort - 本地端口号
+ * @returns Tunnel 的公网 URL
  */
 export async function startTunnel(localPort: number): Promise<string> {
   if (state.status === 'running') {
@@ -72,16 +58,18 @@ export async function startTunnel(localPort: number): Promise<string> {
         const cloudflared = await import('cloudflared');
         const binPath = await getBinaryPath();
 
-        console.log('[Tunnel] Starting cloudflared...');
-        console.log('[Tunnel] Binary at:', binPath);
+        Logger.log('TUNNEL', 'Starting cloudflared', { localPort });
 
-        // Check if binary exists, skip installation if it does
         if (!existsSync(binPath)) {
-          console.log('[Tunnel] Binary not found, installing...');
+          Logger.log('TUNNEL', 'Binary not found, installing...');
           try {
             await cloudflared.install(binPath);
           } catch (installError) {
-            console.error('[Tunnel] Failed to install binary:', installError);
+            Logger.log(
+              'TUNNEL',
+              'Failed to install binary',
+              String(installError)
+            );
             throw new Error(
               'Failed to download cloudflared binary. ' +
                 'Please check your network connection to GitHub. ' +
@@ -89,8 +77,6 @@ export async function startTunnel(localPort: number): Promise<string> {
                 'https://github.com/cloudflare/cloudflared/releases'
             );
           }
-        } else {
-          console.log('[Tunnel] Binary already exists, skipping installation');
         }
 
         const proc = spawn(
@@ -111,7 +97,7 @@ export async function startTunnel(localPort: number): Promise<string> {
         state.process = proc;
 
         const timeout = setTimeout(() => {
-          console.error('[Tunnel] Timeout waiting for URL');
+          Logger.log('TUNNEL', 'Timeout waiting for URL');
           state.status = 'error';
           state.error = 'Timeout waiting for tunnel URL';
           notifyStatus();
@@ -121,23 +107,19 @@ export async function startTunnel(localPort: number): Promise<string> {
 
         let urlFound = false;
 
-        // Parse both stdout and stderr for the tunnel URL
         const tryFindUrl = (data: string) => {
-          console.log('[Tunnel] output:', data);
-
-          // Try multiple URL patterns
           const patterns = [
-            /https:\/\/[a-zA-Z0-9\-]+\.trycloudflare\.com/, // Main URL pattern
-            /https?:\/\/[a-zA-Z0-9\-]+\.trycloudflare\.com/, // Optional http/s
-            /https?:\/\/[a-zA-Z0-9\-]+\.pages\.dev/, // Alternative pattern
-            /Your quick Tunnel has run and reached the necessary daemon.*?https?:\/\/([^\s]+)/, // From cloudflared message
+            /https:\/\/[a-zA-Z0-9\-]+\.trycloudflare\.com/,
+            /https?:\/\/[a-zA-Z0-9\-]+\.trycloudflare\.com/,
+            /https?:\/\/[a-zA-Z0-9\-]+\.pages\.dev/,
+            /Your quick Tunnel has run and reached the necessary daemon.*?https?:\/\/([^\s]+)/,
           ];
 
           for (const pattern of patterns) {
             const match = data.match(pattern);
             if (match && !urlFound) {
               const url = match[1] || match[0];
-              console.log('[Tunnel] 🎉 Got URL:', url);
+              Logger.log('TUNNEL', 'Got URL', url);
               urlFound = true;
               clearTimeout(timeout);
               state.url = url;
@@ -150,26 +132,15 @@ export async function startTunnel(localPort: number): Promise<string> {
           return false;
         };
 
-        // Parse stderr for the tunnel URL
         proc.stderr?.on('data', (data: Buffer) => {
-          if (tryFindUrl(data.toString())) {
-            return;
-          }
-        });
-
-        // Parse stdout for the tunnel URL
-        proc.stdout?.on('data', (data: Buffer) => {
-          if (tryFindUrl(data.toString())) {
-            return;
-          }
+          tryFindUrl(data.toString());
         });
 
         proc.stdout?.on('data', (data: Buffer) => {
-          console.log('[Tunnel] stdout:', data.toString());
+          tryFindUrl(data.toString());
         });
 
         proc.on('exit', (code) => {
-          console.log('[Tunnel] Process exited with code:', code);
           if (!urlFound) {
             clearTimeout(timeout);
           }
@@ -177,10 +148,11 @@ export async function startTunnel(localPort: number): Promise<string> {
           state.url = null;
           state.status = 'stopped';
           notifyStatus();
+          Logger.log('TUNNEL', 'Process exited', { code });
         });
 
         proc.on('error', (error: Error) => {
-          console.error('[Tunnel] Process error:', error);
+          Logger.log('TUNNEL', 'Process error', error.message);
           clearTimeout(timeout);
           state.error = error.message;
           state.status = 'error';
@@ -192,7 +164,7 @@ export async function startTunnel(localPort: number): Promise<string> {
         });
       } catch (error: unknown) {
         const err = error as Error;
-        console.error('[Tunnel] Failed to start:', err);
+        Logger.log('TUNNEL', 'Failed to start', err.message);
         state.status = 'error';
         state.error = err.message;
         notifyStatus();
@@ -203,20 +175,15 @@ export async function startTunnel(localPort: number): Promise<string> {
 }
 
 /**
- * Stop the active Cloudflare tunnel process
- * Attempts SIGTERM first, falls back to SIGKILL if needed
- * Resets tunnel state to stopped
- *
- * @returns {Promise<void>}
+ * 停止 Cloudflare Tunnel
  */
 export async function stopTunnel(): Promise<void> {
   if (state.process) {
-    console.log('[Tunnel] Stopping tunnel...');
+    Logger.log('TUNNEL', 'Stopping tunnel...');
 
     try {
       state.process.kill('SIGTERM');
-    } catch (error) {
-      console.error('[Tunnel] Error stopping tunnel:', error);
+    } catch {
       try {
         state.process.kill('SIGKILL');
       } catch {
@@ -230,15 +197,13 @@ export async function stopTunnel(): Promise<void> {
     state.error = null;
     notifyStatus();
 
-    console.log('[Tunnel] Tunnel stopped');
+    Logger.log('TUNNEL', 'Tunnel stopped');
   }
 }
 
 /**
- * Register a callback to be notified of tunnel status changes
- * Only one callback can be registered at a time
- *
- * @param {StatusCallback} callback - Function to call when tunnel status changes
+ * 注册 Tunnel 状态变化回调
+ * @param callback - 状态变化时的回调函数
  */
 export function onTunnelStatusChange(callback: StatusCallback): void {
   statusCallback = callback;
@@ -248,4 +213,20 @@ function notifyStatus(): void {
   if (statusCallback) {
     statusCallback({ ...state });
   }
+}
+
+/**
+ * 获取当前 Tunnel 状态
+ * @returns Tunnel 状态对象
+ */
+export function getTunnelState(): {
+  status: 'stopped' | 'starting' | 'running' | 'error';
+  url: string | null;
+  error: string | null;
+} {
+  return {
+    status: state.status,
+    url: state.url,
+    error: state.error,
+  };
 }

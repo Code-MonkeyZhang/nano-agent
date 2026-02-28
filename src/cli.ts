@@ -4,9 +4,8 @@ import { Logger } from './util/logger.js';
 import { AgentCore } from './agent.js';
 import { runInteractiveUI } from './ui/index.js';
 import { cleanupMcpConnections } from './tools/index.js';
-import { startServer, cleanup as cleanupServer } from './server/index.js';
 
-async function runAgent(): Promise<void> {
+export async function run(): Promise<void> {
   const workspaceDir = process.cwd();
 
   const configPath = Config.findConfigFile('config.yaml');
@@ -40,36 +39,5 @@ async function runAgent(): Promise<void> {
     await runInteractiveUI(agent);
   } finally {
     await cleanupMcpConnections();
-  }
-}
-
-async function runServer(enableTunnel: boolean): Promise<void> {
-  const onSigint = async (): Promise<void> => {
-    await cleanupServer();
-  };
-
-  process.once('SIGINT', () => {
-    void onSigint();
-  });
-  process.once('SIGTERM', () => {
-    void cleanupServer();
-  });
-
-  try {
-    await startServer(enableTunnel);
-  } catch (error) {
-    console.error('❌ Error starting server:', error);
-    process.exit(1);
-  }
-}
-
-export async function run(
-  mode: 'interactive' | 'server',
-  enableTunnel = true
-): Promise<void> {
-  if (mode === 'server') {
-    await runServer(enableTunnel);
-  } else {
-    await runAgent();
   }
 }

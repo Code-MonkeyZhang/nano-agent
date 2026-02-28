@@ -11,7 +11,8 @@ interface AppProps {
 }
 
 export function App({ agent }: AppProps) {
-  const { history, streamingState, currentModel } = useUIState();
+  const { history, streamingState, currentModel, serverState, terminalWidth } =
+    useUIState();
   const { submitInput } = useUIActions();
 
   const workspace = agent.workspaceDir;
@@ -25,7 +26,12 @@ export function App({ agent }: AppProps) {
           isStreaming={streamingState === 'streaming'}
         />
       </Box>
-      <Footer workspace={workspace} model={currentModel} />
+      <Footer
+        workspace={workspace}
+        model={currentModel}
+        serverState={serverState}
+        terminalWidth={terminalWidth}
+      />
     </Box>
   );
 }

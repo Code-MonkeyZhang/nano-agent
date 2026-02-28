@@ -1,5 +1,20 @@
 export type StreamingState = 'idle' | 'streaming';
 
+export type ServerStatusValue =
+  | 'stopped'
+  | 'starting'
+  | 'running'
+  | 'local'
+  | 'error';
+
+export interface ServerState {
+  status: ServerStatusValue;
+  port?: number;
+  localUrl?: string;
+  publicUrl?: string;
+  error?: string;
+}
+
 export interface HistoryItemUser {
   type: 'user';
   text: string;
@@ -62,6 +77,12 @@ export interface HistoryItemSkill {
   timestamp: number;
 }
 
+export interface HistoryItemServerStatus {
+  type: 'server_status';
+  state: ServerState;
+  timestamp: number;
+}
+
 export type HistoryItem =
   | HistoryItemUser
   | HistoryItemAgent
@@ -72,23 +93,17 @@ export type HistoryItem =
   | HistoryItemHelp
   | HistoryItemAbout
   | HistoryItemMcp
-  | HistoryItemSkill;
+  | HistoryItemSkill
+  | HistoryItemServerStatus;
 
 export interface UIState {
   history: HistoryItem[];
   streamingState: StreamingState;
   terminalWidth: number;
-  terminalHeight: number;
   currentModel: string;
-  currentProvider: string;
-  streamingMessage?: string;
-  lastToolExecution?: {
-    name: string;
-    status: 'running' | 'success' | 'failed';
-  };
+  serverState: ServerState;
 }
 
 export interface UIActions {
   submitInput: (text: string) => Promise<void>;
-  clearHistory: () => void;
 }

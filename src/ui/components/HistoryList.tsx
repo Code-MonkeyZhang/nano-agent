@@ -10,6 +10,7 @@ import { HelpMessage } from './messages/HelpMessage.js';
 import { AboutMessage } from './messages/AboutMessage.js';
 import { McpMessage } from './messages/McpMessage.js';
 import { SkillMessage } from './messages/SkillMessage.js';
+import { ServerStatusMessage } from './messages/ServerStatusMessage.js';
 import { theme } from '../themes.js';
 import type { AgentCore } from '../../agent.js';
 
@@ -87,6 +88,8 @@ export function HistoryList({ items, agent }: HistoryListProps) {
             return <McpMessage key={index} />;
           case 'skill':
             return <SkillMessage key={index} agent={agent} />;
+          case 'server_status':
+            return <ServerStatusMessage key={index} state={item.state} />;
           default:
             return null;
         }
