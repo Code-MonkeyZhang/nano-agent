@@ -6,13 +6,17 @@ import { AgentMessage } from './messages/AgentMessage.js';
 import { ToolMessage } from './messages/ToolMessage.js';
 import { ErrorMessage } from './messages/ErrorMessage.js';
 import { ThinkingMessage } from './messages/ThinkingMessage.js';
+import { HelpMessage } from './messages/HelpMessage.js';
+import { AboutMessage } from './messages/AboutMessage.js';
 import { theme } from '../themes.js';
+import type { AgentCore } from '../../agent.js';
 
 interface HistoryListProps {
   items: HistoryItem[];
+  agent: AgentCore;
 }
 
-export function HistoryList({ items }: HistoryListProps) {
+export function HistoryList({ items, agent }: HistoryListProps) {
   const { terminalWidth } = useUIState();
 
   if (items.length === 0) {
@@ -52,6 +56,24 @@ export function HistoryList({ items }: HistoryListProps) {
             return <ThinkingMessage key={index} text={item.text} />;
           case 'error':
             return <ErrorMessage key={index} text={item.text} />;
+          case 'command':
+            return (
+              <Box key={index} flexDirection="column" paddingY={1}>
+                <Text
+                  color={
+                    item.messageType === 'error'
+                      ? theme.status.error
+                      : theme.text.accent
+                  }
+                >
+                  {item.content}
+                </Text>
+              </Box>
+            );
+          case 'help':
+            return <HelpMessage key={index} />;
+          case 'about':
+            return <AboutMessage key={index} agent={agent} />;
           default:
             return null;
         }

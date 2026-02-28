@@ -33,12 +33,32 @@ export interface HistoryItemError {
   timestamp: number;
 }
 
+export interface HistoryItemCommand {
+  type: 'command';
+  content: string;
+  messageType: 'info' | 'error';
+  timestamp: number;
+}
+
+export interface HistoryItemHelp {
+  type: 'help';
+  timestamp: number;
+}
+
+export interface HistoryItemAbout {
+  type: 'about';
+  timestamp: number;
+}
+
 export type HistoryItem =
   | HistoryItemUser
   | HistoryItemAgent
   | HistoryItemTool
   | HistoryItemThinking
-  | HistoryItemError;
+  | HistoryItemError
+  | HistoryItemCommand
+  | HistoryItemHelp
+  | HistoryItemAbout;
 
 export interface UIState {
   history: HistoryItem[];

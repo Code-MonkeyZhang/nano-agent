@@ -7,6 +7,8 @@ import { KeypressProvider } from './contexts/KeypressContext.js';
 import type { HistoryItem, StreamingState } from './types.js';
 import type { AgentCore } from '../agent.js';
 import type { AgentEvent } from '../schema/events.js';
+import { getCommandRegistry } from '../commands/CommandRegistry.js';
+import type { CommandResult } from '../commands/types.js';
 
 interface AppContainerProps {
   agent: AgentCore;
@@ -24,15 +26,94 @@ export function AppContainer({ agent }: AppContainerProps) {
   const currentModel = agent.config.llm.model;
   const currentProvider = agent.config.llm.provider;
 
+  const handleCommandResult = useCallback(
+    (result: CommandResult) => {
+      switch (result.type) {
+        case 'message':
+          setHistory((prev) => [
+            ...prev,
+            {
+              type: 'command',
+              content: result.content,
+              messageType: result.messageType,
+              timestamp: Date.now(),
+            },
+          ]);
+          break;
+        case 'help':
+          setHistory((prev) => [
+            ...prev,
+            {
+              type: 'help',
+              timestamp: Date.now(),
+            },
+          ]);
+          break;
+        case 'about':
+          setHistory((prev) => [
+            ...prev,
+            {
+              type: 'about',
+              timestamp: Date.now(),
+            },
+          ]);
+          break;
+        case 'open_url':
+          setHistory((prev) => [
+            ...prev,
+            {
+              type: 'command',
+              content: result.message,
+              messageType: 'info' as const,
+              timestamp: Date.now(),
+            },
+          ]);
+          break;
+      }
+    },
+    [setHistory]
+  );
+
   const submitInput = useCallback(
     async (text: string) => {
+      const registry = getCommandRegistry();
+      const parsed = registry.parse(text);
+
+      if (parsed.isValid && parsed.command) {
+        setHistory((prev) => [
+          ...prev,
+          { type: 'user', text, timestamp: Date.now() },
+        ]);
+
+        try {
+          const result = await registry.execute(parsed.command, {
+            agent,
+            args: parsed.args,
+          });
+          handleCommandResult(result);
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          setHistory((prev) => [
+            ...prev,
+            {
+              type: 'command',
+              content: `❌ Command failed: ${errorMessage}`,
+              messageType: 'error',
+              timestamp: Date.now(),
+            },
+          ]);
+        }
+        return;
+      }
+
       setHistory((prev) => [
         ...prev,
         { type: 'user', text, timestamp: Date.now() },
-      ]); // append new input to History
+      ]);
 
-      setStreamingState('streaming'); // 提示正在进行streaming
-      agent.addUserMessage(text); // add message to Agent
+      setStreamingState('streaming');
+      agent.addUserMessage(text);
 
       try {
         const stream = agent.runStream(); // 启动agent stream
@@ -138,7 +219,7 @@ export function AppContainer({ agent }: AppContainerProps) {
 
       setStreamingState('idle');
     },
-    [agent]
+    [agent, handleCommandResult]
   );
 
   const clearHistory = useCallback(() => {
@@ -163,7 +244,7 @@ export function AppContainer({ agent }: AppContainerProps) {
     <KeypressProvider>
       <UIStateContext.Provider value={state}>
         <UIActionsContext.Provider value={actions}>
-          <App />
+          <App agent={agent} />
         </UIActionsContext.Provider>
       </UIStateContext.Provider>
     </KeypressProvider>
