@@ -57,7 +57,14 @@ export function HistoryList({ items, agent }: HistoryListProps) {
           case 'thinking':
             return <ThinkingMessage key={index} text={item.text} />;
           case 'error':
-            return <ErrorMessage key={index} text={item.text} />;
+            return (
+              <ErrorMessage
+                key={index}
+                text={item.text}
+                code={item.code}
+                suggestion={item.suggestion}
+              />
+            );
           case 'command':
             return (
               <Box key={index} flexDirection="column" paddingY={1}>

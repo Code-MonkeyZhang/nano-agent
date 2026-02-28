@@ -30,6 +30,8 @@ export interface HistoryItemThinking {
 export interface HistoryItemError {
   type: 'error';
   text: string;
+  code?: string;
+  suggestion?: string;
   timestamp: number;
 }
 

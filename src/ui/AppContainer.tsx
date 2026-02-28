@@ -9,6 +9,7 @@ import type { AgentCore } from '../agent.js';
 import type { AgentEvent } from '../schema/events.js';
 import { getCommandRegistry } from '../commands/CommandRegistry.js';
 import type { CommandResult } from '../commands/types.js';
+import { parseError } from '../util/error-parser.js';
 
 interface AppContainerProps {
   agent: AgentCore;
@@ -222,17 +223,18 @@ export function AppContainer({ agent }: AppContainerProps) {
           }
         }
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const parsed = parseError(error);
         setHistory((prev) => [
           ...prev,
           {
             type: 'error',
-            text: errorMessage,
+            text: parsed.text,
+            code: parsed.code,
+            suggestion: parsed.suggestion,
             timestamp: Date.now(),
           },
-        ]); // 添加error信息
-        agent.messages.pop(); //移除message
+        ]);
+        agent.messages.pop();
       }
 
       setStreamingState('idle');
