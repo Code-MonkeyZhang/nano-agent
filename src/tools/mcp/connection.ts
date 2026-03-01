@@ -216,16 +216,14 @@ export class MCPServerConnection {
         );
       }
 
-      const connectedMsg = `✅ Connected to MCP server '${this.name}' (${this.connectionType}) - loaded ${this.tools.length} tools`;
-      console.log(connectedMsg);
-      Logger.log('startup', connectedMsg);
+      const connectedMsg = `Connected to MCP server '${this.name}' (${this.connectionType}) - loaded ${this.tools.length} tools`;
+      Logger.log('STARTUP', connectedMsg);
 
       return true;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      const msg = `✗ Failed to connect to MCP server '${this.name}': ${message}`;
-      console.log(msg);
-      Logger.log('startup', msg);
+      const msg = `Failed to connect to MCP server '${this.name}': ${message}`;
+      Logger.log('ERROR', msg);
       await this.disconnect();
       return false;
     }

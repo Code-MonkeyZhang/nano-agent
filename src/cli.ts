@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { Config } from './config.js';
 import { Logger } from './util/logger.js';
 import { AgentCore } from './agent.js';
@@ -10,20 +9,20 @@ export async function run(): Promise<void> {
 
   const configPath = Config.findConfigFile('config.yaml');
   if (!configPath) {
-    console.error('❌ Configuration file not found. Please run setup.');
-    process.exit(1);
+    throw new Error('Configuration file not found. Please run setup.');
   }
   const config = Config.fromYaml(configPath);
-  console.log(`Config loaded from: ${configPath}`);
-  console.log(`Workspace: ${workspaceDir}`);
 
   if (config.logging.enableLogging) {
     Logger.initialize(undefined, 'agent');
   }
 
-  console.log(`Model: ${config.llm.model}`);
-  console.log(`Provider: ${config.llm.provider}`);
-  console.log('Starting Ink UI...');
+  Logger.log('STARTUP', 'Configuration loaded', {
+    configPath,
+    workspace: workspaceDir,
+    model: config.llm.model,
+    provider: config.llm.provider,
+  });
 
   const agent = new AgentCore(config, workspaceDir);
   await agent.initialize();

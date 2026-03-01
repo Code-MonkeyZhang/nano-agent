@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
@@ -43,8 +42,9 @@ export function createChatRouter(): Router {
       if (messages.length > 1) {
         const historyMessages = messages.slice(0, messages.length - 1);
         agent.messages.push(...historyMessages);
-        console.log(
-          `[Chat API] Injected ${historyMessages.length} history messages`
+        Logger.log(
+          'CHAT',
+          `Injected ${historyMessages.length} history messages`
         );
       }
 
@@ -60,7 +60,7 @@ export function createChatRouter(): Router {
             .join('\n');
         }
         agent.addUserMessage(content);
-        console.log(`[Chat API] User message: ${content.slice(0, 100)}...`);
+        Logger.log('CHAT', `User message preview: ${content.slice(0, 100)}...`);
       }
 
       const modelName = agent.config.llm.model; // Get model name for response

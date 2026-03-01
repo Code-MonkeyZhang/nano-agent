@@ -7,12 +7,14 @@ export class Logger {
   private static initialized = false;
   private static mode: 'agent' | 'server' = 'agent';
 
-  static initialize(logDir?: string, mode: 'agent' | 'server' = 'agent') {
+  static initialize(
+    logDir?: string,
+    mode: 'agent' | 'server' = 'agent'
+  ): string {
     this.mode = mode;
 
     if (this.initialized) {
-      console.log('[Logger] Already initialized, skipping');
-      return;
+      return this.logFile ?? '';
     }
 
     const logsDir = logDir ?? this.getLogsDirectory();
@@ -23,10 +25,9 @@ export class Logger {
     const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
     const prefix = mode === 'server' ? 'server' : 'agent';
     this.logFile = path.join(logsDir, `${prefix}-${timestamp}.log`);
-    console.log(
-      `[Logger] Initialized (${mode} mode) with file: ${this.logFile}`
-    );
     this.initialized = true;
+
+    return this.logFile;
   }
 
   static getLogsDirectory(): string {
