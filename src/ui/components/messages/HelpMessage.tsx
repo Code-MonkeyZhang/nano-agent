@@ -1,7 +1,7 @@
 import { Box, Text } from 'ink';
 import { theme } from '../../themes.js';
-import { getCommandRegistry } from '../../../commands/CommandRegistry.js';
-import { CommandKind } from '../../../commands/types.js';
+import { getCommandRegistry } from '../../commands/CommandRegistry.js';
+import { CommandKind } from '../../commands/types.js';
 
 export function HelpMessage() {
   const registry = getCommandRegistry();

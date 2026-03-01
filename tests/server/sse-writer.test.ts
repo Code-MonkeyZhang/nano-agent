@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SSEWriter } from '../../src/server/streaming/sse-writer.js';
+import { SSEWriter } from '../../src/server/sse-writer.js';
 import type { Response } from 'express';
 
 describe('SSEWriter', () => {

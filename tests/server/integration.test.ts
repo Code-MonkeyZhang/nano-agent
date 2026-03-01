@@ -6,10 +6,26 @@ import {
 } from '../../src/server/websocket-server.js';
 import { Config } from '../../src/config.js';
 import * as path from 'node:path';
+import * as net from 'node:net';
 import { fileURLToPath } from 'node:url';
 
-const PORT = 3848;
-const BASE_URL = `http://localhost:${PORT}/v1`;
+/**
+ * 找到一个可用端口
+ */
+function findAvailablePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.on('error', reject);
+    server.listen(0, '0.0.0.0', () => {
+      const port = (server.address() as net.AddressInfo).port;
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+let PORT: number;
+let BASE_URL: string;
 
 // Get test directory path
 const testFileDir = path.dirname(fileURLToPath(import.meta.url));
@@ -49,11 +65,12 @@ maybeDescribe('Integration Tests', () => {
       throw new Error('Config not available for integration test');
     }
 
+    // Find available port
+    PORT = await findAvailablePort();
+    BASE_URL = `http://localhost:${PORT}/v1`;
+
     // Override env vars if needed
     process.env['NO_TUNNEL'] = '1';
-
-    // Initialize LLM Client
-    // const llmClient = new LLMClient(...); // Removed as AgentCore initializes it internally
 
     // Setup Routes
     await setupOpenAIRoutes(

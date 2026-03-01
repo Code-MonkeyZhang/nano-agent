@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import type { ChatCompletionChunk } from '../types/openai-types.js';
+import type { ChatCompletionChunk } from './types/openai-types.js';
 
 /**
  * SSE (Server-Sent Events) 响应写入器

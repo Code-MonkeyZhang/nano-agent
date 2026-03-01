@@ -1,7 +1,7 @@
 import type { SlashCommand, CommandResult } from '../types.js';
 import { CommandKind } from '../types.js';
-import { getServerManager } from '../../server/index.js';
-import type { ServerState } from '../../ui/types.js';
+import { getServerManager } from '../../../server/index.js';
+import type { ServerState } from '../../types.js';
 
 export const serverStartCommand: SlashCommand = {
   name: 'server-start',

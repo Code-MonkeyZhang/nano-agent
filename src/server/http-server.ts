@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { createServer as createHttpServer } from 'http';
 import { Config } from '../config.js';
 import { AgentCore } from '../agent.js';
-import { createChatRouter } from './routes/chat.js';
+import { createChatRouter } from './chat.js';
 import { Logger } from '../util/logger.js';
 
 const app = express();

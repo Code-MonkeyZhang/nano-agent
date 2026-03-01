@@ -1,5 +1,5 @@
-import type { AgentCore } from '../agent.js';
-import type { ServerState } from '../ui/types.js';
+import type { AgentCore } from '../../agent.js';
+import type { ServerState } from '../types.js';
 
 export enum CommandKind {
   BUILT_IN = 'built-in',

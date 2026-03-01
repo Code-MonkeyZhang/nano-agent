@@ -3,14 +3,14 @@ import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 
-import { SSEWriter } from '../streaming/sse-writer.js';
-import { convertOpenAIRequest } from '../converters/openai-to-nanoagent.js';
+import { SSEWriter } from './sse-writer.js';
+import { convertOpenAIRequest } from './converters/openai-to-nanoagent.js';
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
-} from '../types/openai-types.js';
-import { Logger } from '../../util/logger.js';
-import { getGlobalAgent } from '../http-server.js';
+} from './types/openai-types.js';
+import { Logger } from '../util/logger.js';
+import { getGlobalAgent } from './http-server.js';
 
 /**
  * Creates an OpenAI-compatible chat router.

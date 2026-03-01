@@ -7,8 +7,8 @@ import { KeypressProvider } from './contexts/KeypressContext.js';
 import type { HistoryItem, StreamingState, ServerState } from './types.js';
 import type { AgentCore } from '../agent.js';
 import type { AgentEvent } from '../schema/events.js';
-import { getCommandRegistry } from '../commands/CommandRegistry.js';
-import type { CommandResult } from '../commands/types.js';
+import { getCommandRegistry } from './commands/CommandRegistry.js';
+import type { CommandResult } from './commands/types.js';
 import { parseError } from '../util/error-parser.js';
 import { getServerManager } from '../server/index.js';
 
