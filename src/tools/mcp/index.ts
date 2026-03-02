@@ -33,7 +33,7 @@ export async function loadMcpToolsAsync(
 ): Promise<Tool[]> {
   const resolvedPath = path.resolve(configPath);
   if (!fs.existsSync(resolvedPath)) {
-    console.log(`MCP config not found: ${resolvedPath}`);
+    Logger.log('MCP', `Config not found: ${resolvedPath}`);
     return [];
   }
 
@@ -43,7 +43,7 @@ export async function loadMcpToolsAsync(
     const servers = config.mcpServers ?? {};
 
     if (!isRecord(servers) || Object.keys(servers).length === 0) {
-      console.log('No MCP servers configured');
+      Logger.log('MCP', 'No servers configured');
       return [];
     }
 
@@ -51,13 +51,13 @@ export async function loadMcpToolsAsync(
 
     for (const [serverName, serverConfigValue] of Object.entries(servers)) {
       if (!isRecord(serverConfigValue)) {
-        console.log(`Skipping invalid server config: ${serverName}`);
+        Logger.log('MCP', `Skipping invalid server config: ${serverName}`);
         continue;
       }
 
       const serverConfig = serverConfigValue as McpServerConfig;
       if (serverConfig.disabled) {
-        console.log(`Skipping disabled server: ${serverName}`);
+        Logger.log('MCP', `Skipping disabled server: ${serverName}`);
         continue;
       }
 
@@ -100,15 +100,13 @@ export async function loadMcpToolsAsync(
       }
     }
 
-    const totalMsg = `
-Total MCP tools loaded: ${allTools.length}`;
-    Logger.log('MCP', totalMsg.trim());
+    const totalMsg = `Total MCP tools loaded: ${allTools.length}`;
+    Logger.log('MCP', totalMsg);
     return allTools;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     const msg = `Error loading MCP config: ${message}`;
-    console.log(msg);
-    Logger.debug('MCP', msg);
+    Logger.log('ERROR', 'MCP config load failed', msg);
     return [];
   }
 }

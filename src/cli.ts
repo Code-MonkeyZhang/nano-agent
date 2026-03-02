@@ -1,32 +1,39 @@
-/* eslint-disable no-console */
+/**
+ * Nano-Agent CLI 入口文件
+ */
+
 import { Config } from './config.js';
 import { Logger } from './util/logger.js';
-import { AgentCore } from './agent.js';
 import { runInteractiveUI } from './ui/index.js';
 import { cleanupMcpConnections } from './tools/index.js';
 
+/**
+ * CLI 主入口函数
+ * 程序启动的入口点
+ */
 export async function run(): Promise<void> {
+  // 使用当前工作目录
   const workspaceDir = process.cwd();
 
+  // 查找 config.yaml 配置文件
   const configPath = Config.findConfigFile('config.yaml');
   if (!configPath) {
-    console.error('❌ Configuration file not found. Please run setup.');
-    process.exit(1);
+    throw new Error('Configuration file not found. Please run setup.');
   }
   const config = Config.fromYaml(configPath);
-  console.log(`Config loaded from: ${configPath}`);
-  console.log(`Workspace: ${workspaceDir}`);
 
+  // 启动日志
   if (config.logging.enableLogging) {
     Logger.initialize(undefined, 'agent');
   }
 
-  console.log(`Model: ${config.llm.model}`);
-  console.log(`Provider: ${config.llm.provider}`);
-  console.log('Starting Ink UI...');
-
-  const agent = new AgentCore(config, workspaceDir);
-  await agent.initialize();
+  // 记录启动日志
+  Logger.log('STARTUP', 'Configuration loaded', {
+    configPath,
+    workspace: workspaceDir,
+    model: config.llm.model,
+    provider: config.llm.provider,
+  });
 
   const onSigint = (): void => {
     void cleanupMcpConnections();
@@ -36,8 +43,9 @@ export async function run(): Promise<void> {
   process.once('SIGTERM', onSigint);
 
   try {
-    await runInteractiveUI(agent);
+    await runInteractiveUI(config, workspaceDir);
   } finally {
+    // 程序结束时确保 MCP 连接被正确关闭
     await cleanupMcpConnections();
   }
 }

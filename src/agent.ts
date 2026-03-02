@@ -63,9 +63,7 @@ function findSkillsDir(skillsDirConfig: string): string {
   const packageSkillsDir = path.join(projectRoot, 'skills');
 
   if (fs.existsSync(packageSkillsDir)) {
-    console.log(
-      `[AgentCore] 📦 Using built-in skills from: ${packageSkillsDir}`
-    );
+    Logger.log('STARTUP', `Using built-in skills from: ${packageSkillsDir}`);
     return packageSkillsDir;
   }
 
@@ -100,7 +98,7 @@ export class AgentCore {
   }
 
   async initialize(): Promise<void> {
-    console.log('[AgentCore] Initializing...');
+    Logger.log('STARTUP', 'Initializing AgentCore...');
 
     // 1. Initialize LLM Client
     if (!this.llmClient) {
@@ -112,14 +110,12 @@ export class AgentCore {
         this.config.llm.retry
       );
 
-      console.log('[AgentCore] Checking API connection...');
+      Logger.log('STARTUP', 'Checking API connection...');
       const isConnected = await this.llmClient.checkConnection();
       if (isConnected) {
-        console.log('[AgentCore] ✅ API connection OK');
+        Logger.log('STARTUP', 'API connection OK');
       } else {
-        console.log(
-          '[AgentCore] ⚠️  API connection failed (Check API Key/Network)'
-        );
+        Logger.log('STARTUP', 'API connection failed (Check API Key/Network)');
       }
     }
 
@@ -130,11 +126,11 @@ export class AgentCore {
     );
     if (systemPromptPath && fs.existsSync(systemPromptPath)) {
       baseSystemPrompt = fs.readFileSync(systemPromptPath, 'utf8');
-      console.log(`[AgentCore] ✅ Loaded system prompt`);
+      Logger.log('STARTUP', 'Loaded system prompt');
     } else {
       baseSystemPrompt =
         'You are Mini-Agent, an intelligent assistant powered by MiniMax M2 that can help users complete various tasks.';
-      console.log('[AgentCore] ⚠️  System prompt not found, using default');
+      Logger.log('STARTUP', 'System prompt not found, using default');
     }
 
     this.systemPrompt = buildSystemPrompt(baseSystemPrompt, this.workspaceDir);
@@ -164,14 +160,12 @@ export class AgentCore {
   }
 
   private async loadSkills(): Promise<void> {
-    console.log('[AgentCore] Loading Skills...');
+    Logger.log('STARTUP', 'Loading Skills...');
     const skillsDir = findSkillsDir(this.config.tools.skillsDir);
 
     // Create directory if neither CWD nor package directory has skills
     if (!fs.existsSync(skillsDir)) {
-      console.log(
-        `[AgentCore] ⚠️  Skills directory does not exist: ${skillsDir}`
-      );
+      Logger.log('STARTUP', `Skills directory does not exist: ${skillsDir}`);
       fs.mkdirSync(skillsDir, { recursive: true });
     }
 
@@ -184,23 +178,20 @@ export class AgentCore {
         const skillsMetadata = this.skillLoader.getSkillsMetadataPrompt();
         this.systemPrompt += `\n\n${skillsMetadata}`;
         Logger.log(
-          'startup',
-          'Skills Loaded:',
+          'STARTUP',
+          'Skills loaded successfully',
           discoveredSkills.map((s) => s.name)
         );
-        console.log(
-          `[AgentCore] ✅ Loaded ${discoveredSkills.length} skill(s)`
-        );
       } else {
-        console.log('[AgentCore] ⚠️  No skills found in skills directory');
+        Logger.log('STARTUP', 'No skills found in skills directory');
       }
     } catch (error) {
-      console.error(`[AgentCore] ❌ Failed to load skills: ${error}`);
+      Logger.log('ERROR', 'Failed to load skills', error);
     }
   }
 
   private async loadMcpTools(): Promise<void> {
-    console.log('[AgentCore] Loading MCP tools...');
+    Logger.log('STARTUP', 'Loading MCP tools...');
     const mcpConfig = this.config.tools.mcp;
 
     setMcpTimeoutConfig({
@@ -219,19 +210,20 @@ export class AgentCore {
         for (const tool of mcpTools) {
           this.tools.set(tool.name, tool);
         }
-        console.log(`[AgentCore] ✅ Loaded ${mcpTools.length} MCP tools`);
+        Logger.log('STARTUP', `Loaded ${mcpTools.length} MCP tools`);
       } else {
-        console.log('[AgentCore] ⚠️  No available MCP tools found');
+        Logger.log('STARTUP', 'No available MCP tools found');
       }
     } else {
-      console.log(
-        `[AgentCore] ⚠️  MCP config file not found: ${this.config.tools.mcpConfigPath}`
+      Logger.log(
+        'STARTUP',
+        `MCP config file not found: ${this.config.tools.mcpConfigPath}`
       );
     }
   }
 
   addUserMessage(content: string): void {
-    Logger.log('CHAT', 'User:', content);
+    Logger.log('CHAT', 'User message', content);
     this.messages.push({ role: 'user', content });
   }
 

@@ -1,5 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { httpServer } from './http-server.js';
+import { Logger } from '../util/logger.js';
 
 // WebSocket server instance
 let wss: WebSocketServer | null = null;
@@ -46,7 +47,7 @@ export function initWebSocket(): void {
     ws.on('message', (data: Buffer) => {
       try {
         const message = JSON.parse(data.toString());
-        console.log(`[WS] Message from ${clientId}:`, message.type);
+        Logger.log('WS', `Message from ${clientId}`, message.type);
 
         // Echo back for testing
         ws.send(
@@ -56,20 +57,20 @@ export function initWebSocket(): void {
           })
         );
       } catch (error) {
-        console.error('[WS] Invalid message:', error);
+        Logger.log('ERROR', `Invalid message from ${clientId}`, error);
       }
     });
 
     // Handle disconnection
     ws.on('close', () => {
       clients.delete(clientId);
-      console.log(`[WS] Client disconnected: ${clientId}`);
-      console.log(`[WS] Total clients: ${clients.size}`);
+      Logger.log('WS', `Client disconnected: ${clientId}`);
+      Logger.log('WS', `Total clients: ${clients.size}`);
     });
 
     // Handle errors
     ws.on('error', (error: Error) => {
-      console.error(`[WS] Client error ${clientId}:`, error);
+      Logger.log('ERROR', `Client error ${clientId}`, error);
       clients.delete(clientId);
     });
   });
@@ -84,11 +85,11 @@ export function shutdownWebSocket(): void {
   if (wss) {
     for (const [clientId, ws] of clients.entries()) {
       ws.close();
-      console.log(`[WS] Closed client ${clientId}`);
+      Logger.log('WS', `Closed client ${clientId}`);
     }
     clients.clear();
     wss.close();
     wss = null;
-    console.log('[WS] WebSocket server shutdown');
+    Logger.log('WS', 'WebSocket server shutdown');
   }
 }

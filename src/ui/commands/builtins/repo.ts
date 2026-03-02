@@ -1,5 +1,4 @@
 import type { SlashCommand, CommandContext, CommandResult } from '../types.js';
-import { CommandKind } from '../types.js';
 import { execSync } from 'node:child_process';
 import open from 'open';
 
@@ -39,10 +38,7 @@ function convertToHttpsUrl(gitUrl: string): string | null {
 
 export const repoCommand: SlashCommand = {
   name: 'repo',
-  altNames: ['git', 'open'],
   description: 'Open git repository in browser',
-  kind: CommandKind.BUILT_IN,
-  autoExecute: true,
   action: async (context: CommandContext): Promise<CommandResult> => {
     const workspaceDir = context.agent.workspaceDir;
     const gitUrl = getGitRemoteUrl(workspaceDir);

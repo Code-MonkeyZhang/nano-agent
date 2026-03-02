@@ -7,6 +7,7 @@ import * as path from 'node:path';
 import yaml from 'yaml';
 import { SkillSchema } from './types.js';
 import type { Skill } from './types.js';
+import { Logger } from '../util/logger.js';
 
 /**
  * Skill Loader
@@ -65,7 +66,7 @@ export class SkillLoader {
 
       const extracted = this.extractFrontmatter(content);
       if (!extracted) {
-        console.warn(`⚠️  ${skillPath} missing valid frontmatter`);
+        Logger.log('SKILL', `Missing valid frontmatter: ${skillPath}`);
         return null;
       }
 
@@ -75,13 +76,13 @@ export class SkillLoader {
       try {
         frontmatter = yaml.parse(frontmatterText);
       } catch (error) {
-        console.error(`❌ Failed to parse YAML: ${error}`);
+        Logger.log('ERROR', `Failed to parse YAML: ${skillPath}`, error);
         return null;
       }
 
       const validated = SkillSchema.safeParse(frontmatter);
       if (!validated.success) {
-        console.error(`❌ Skill validation failed`);
+        Logger.log('ERROR', `Skill validation failed: ${skillPath}`);
         return null;
       }
 
@@ -97,7 +98,7 @@ export class SkillLoader {
 
       return skill;
     } catch (error) {
-      console.error(`❌ Failed to load skill (${skillPath}): ${error}`);
+      Logger.log('ERROR', `Failed to load skill: ${skillPath}`, error);
       return null;
     }
   }
@@ -175,7 +176,7 @@ export class SkillLoader {
     const skills: Skill[] = [];
 
     if (!fs.existsSync(this.skillsDir)) {
-      console.warn(`⚠️  Skills directory does not exist: ${this.skillsDir}`);
+      Logger.log('SKILL', `Skills directory does not exist: ${this.skillsDir}`);
       return skills;
     }
 
@@ -204,8 +205,9 @@ export class SkillLoader {
       if (skill) {
         // Check duplicate skill
         if (this.loadedSkills.has(skill.name)) {
-          console.warn(
-            `⚠️  Duplicate skill name detected: '${skill.name}'. Using first occurrence.`
+          Logger.log(
+            'SKILL',
+            `Duplicate skill name detected: '${skill.name}'. Using first occurrence.`
           );
           continue;
         }
@@ -214,7 +216,7 @@ export class SkillLoader {
       }
     }
 
-    console.log(`✅ Discovered ${skills.length} Claude Skills`);
+    Logger.log('SKILL', `Discovered ${skills.length} Claude Skills`);
     return skills;
   }
 
