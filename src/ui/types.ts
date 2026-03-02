@@ -98,6 +98,7 @@ export type HistoryItem =
 
 export interface UIState {
   history: HistoryItem[];
+  pendingItem: HistoryItem | null;
   streamingState: StreamingState;
   terminalWidth: number;
   currentModel: string;

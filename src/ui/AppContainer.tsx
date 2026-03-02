@@ -8,14 +8,14 @@
  * - 显示启动摘要 (StartupSummary)
  *
  * 状态管理:
- * - history: 对话历史列表
+ * - history: 已完成的历史项（不可变）
+ * - pendingItem: 正在流式输出的当前项（可变）
  * - streamingState: 流式响应状态 (idle/streaming)
  * - serverState: MCP 服务器状态
- * - showStartup: 是否显示启动摘要
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { Box, useStdout } from 'ink';
+import { Box } from 'ink';
 import { App } from './App.js';
 import { UIStateContext } from './contexts/UIStateContext.js';
 import { UIActionsContext } from './contexts/UIActionsContext.js';
@@ -28,6 +28,8 @@ import { getCommandRegistry } from './commands/CommandRegistry.js';
 import type { CommandResult } from './commands/types.js';
 import { parseError } from '../util/error-parser.js';
 import { getServerManager } from '../server/index.js';
+import { useTerminalSize } from './hooks/useTerminalSize.js';
+import { useStateAndRef } from './hooks/useStateAndRef.js';
 
 /** MCP 服务器初始状态 */
 const initialServerState: ServerState = { status: 'stopped' };
@@ -41,13 +43,15 @@ interface AppContainerProps {
  * 管理整个应用的 UI 状态和核心交互逻辑
  */
 export function AppContainer({ agent }: AppContainerProps) {
-  const { stdout } = useStdout();
+  const { columns: terminalWidth } = useTerminalSize();
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [pendingItem, pendingItemRef, setPendingItem] =
+    useStateAndRef<HistoryItem | null>(null);
   const [streamingState, setStreamingState] = useState<StreamingState>('idle');
   const [serverState, setServerState] =
     useState<ServerState>(initialServerState);
+  const [showStartup, setShowStartup] = useState(true);
 
-  const terminalWidth = stdout.columns ?? 80;
   const currentModel = agent.config.llm.model;
 
   // 监听 MCP 服务器状态变化
@@ -154,6 +158,9 @@ export function AppContainer({ agent }: AppContainerProps) {
    */
   const submitInput = useCallback(
     async (text: string) => {
+      // 隐藏启动摘要
+      setShowStartup(false);
+
       // 解析命令
       const registry = getCommandRegistry();
       const parsed = registry.parse(text);
@@ -206,6 +213,7 @@ export function AppContainer({ agent }: AppContainerProps) {
         for await (const event of stream as AsyncGenerator<AgentEvent>) {
           switch (event.type) {
             case 'thinking':
+              // thinking 消息完成后添加到 history
               setHistory((prev) => [
                 ...prev,
                 {
@@ -216,70 +224,74 @@ export function AppContainer({ agent }: AppContainerProps) {
               ]);
               break;
 
-            case 'content':
-              setHistory((prev) => {
-                const last = prev[prev.length - 1];
-                // 如果上一条是 agent 消息,追加内容
-                if (last?.type === 'agent') {
-                  return [
-                    ...prev.slice(0, -1),
-                    { ...last, text: last.text + event.content },
-                  ];
+            case 'content': {
+              // 如果有非 agent 类型的 pendingItem（如 tool），先移到 history
+              const contentItemToFlush = pendingItemRef.current;
+              if (contentItemToFlush && contentItemToFlush.type !== 'agent') {
+                setHistory((prev) => [...prev, contentItemToFlush]);
+                setPendingItem(null);
+              }
+
+              // content 消息使用 pendingItem（可实时更新）
+              setPendingItem((prev) => {
+                if (prev?.type === 'agent') {
+                  return { ...prev, text: prev.text + event.content };
                 }
-                // 否则创建新的 agent 消息
-                return [
-                  ...prev,
-                  {
-                    type: 'agent',
-                    text: event.content,
-                    timestamp: Date.now(),
-                  },
-                ];
+                return {
+                  type: 'agent',
+                  text: event.content,
+                  timestamp: Date.now(),
+                };
               });
               break;
+            }
 
             case 'tool_start': {
+              // 如果有 pendingItem，先移到 history
+              const itemToFlush = pendingItemRef.current;
+              if (itemToFlush) {
+                setHistory((prev) => [...prev, itemToFlush]);
+                setPendingItem(null);
+              }
+
+              // 添加 tool 消息到 pendingItem
               const functionName = event.toolCall.function.name;
               const args = event.toolCall.function.arguments ?? {};
-              setHistory((prev) => [
-                ...prev,
-                {
-                  type: 'tool',
-                  name: functionName,
-                  args,
-                  result: 'Executing...',
-                  success: true,
-                  timestamp: Date.now(),
-                },
-              ]);
+              setPendingItem({
+                type: 'tool',
+                name: functionName,
+                args,
+                result: 'Executing...',
+                success: true,
+                timestamp: Date.now(),
+              });
               break;
             }
 
             case 'tool_result': {
-              setHistory((prev) => {
-                // 找到最后一条 tool 消息
-                const lastToolIndex = [...prev]
-                  .reverse()
-                  .findIndex((item) => item.type === 'tool');
-                if (lastToolIndex === -1) return prev;
-
-                const actualIndex = prev.length - 1 - lastToolIndex;
-                const updated = [...prev];
-                const lastTool = updated[actualIndex];
-                if (lastTool?.type === 'tool') {
-                  // 更新工具结果
-                  updated[actualIndex] = {
-                    ...lastTool,
-                    result: event.result.content || event.result.error || '',
-                    success: event.result.success,
-                  };
-                }
-                return updated;
-              });
+              // 工具完成时，立即推送到 history（Static）
+              const toolItemToFlush = pendingItemRef.current;
+              if (toolItemToFlush && toolItemToFlush.type === 'tool') {
+                const completedTool = {
+                  ...toolItemToFlush,
+                  result: event.result.content || event.result.error || '',
+                  success: event.result.success,
+                };
+                setHistory((prev) => [...prev, completedTool]);
+                setPendingItem(null);
+              }
               break;
             }
 
             case 'error':
+              // 如果有 pendingItem，先移到 history
+              const errorItemToFlush = pendingItemRef.current;
+              if (errorItemToFlush) {
+                setHistory((prev) => [...prev, errorItemToFlush]);
+                setPendingItem(null);
+              }
+
+              // error 消息完成后添加到 history
               setHistory((prev) => [
                 ...prev,
                 {
@@ -291,7 +303,21 @@ export function AppContainer({ agent }: AppContainerProps) {
               break;
           }
         }
+
+        // 流结束：将 pendingItem 移到 history
+        const streamEndItemToFlush = pendingItemRef.current;
+        if (streamEndItemToFlush) {
+          setHistory((prev) => [...prev, streamEndItemToFlush]);
+          setPendingItem(null);
+        }
       } catch (error) {
+        // 如果有 pendingItem，先移到 history
+        const catchItemToFlush = pendingItemRef.current;
+        if (catchItemToFlush) {
+          setHistory((prev) => [...prev, catchItemToFlush]);
+          setPendingItem(null);
+        }
+
         const parsed = parseError(error);
         setHistory((prev) => [
           ...prev,
@@ -316,6 +342,7 @@ export function AppContainer({ agent }: AppContainerProps) {
   /** UI 状态上下文值 */
   const state = {
     history,
+    pendingItem,
     streamingState,
     terminalWidth,
     currentModel,
@@ -333,8 +360,8 @@ export function AppContainer({ agent }: AppContainerProps) {
       <UIStateContext.Provider value={state}>
         <UIActionsContext.Provider value={actions}>
           <Box flexDirection="column">
-            {/* 启动摘要 (用户输入后隐藏) */}
-            {<StartupSummary agent={agent} />}
+            {/* 启动摘要 */}
+            {showStartup && <StartupSummary agent={agent} />}
             {/* 主应用组件 */}
             <App agent={agent} />
           </Box>

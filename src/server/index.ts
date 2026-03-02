@@ -153,11 +153,11 @@ class ServerManager {
   /**
    * 启动 HTTP Server
    * 会依次：设置路由 → 初始化 WebSocket → 启动 HTTP 监听 → 启动 Tunnel（可选）
-   * 
+   *
    * 采用双重保险机制避免端口冲突：
    * 1. 启动前扫描端口范围（3847-3866），找到第一个可用端口
    * 2. 启动失败时自动尝试下一个端口（处理竞态条件）
-   * 
+   *
    * @param options - 启动选项
    * @param options.enableTunnel - 是否启用 Cloudflare Tunnel 以获取公网访问地址
    * @returns 启动结果，包含 success 和可能的 error 信息
