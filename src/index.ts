@@ -7,7 +7,7 @@ const program = new Command();
 
 program
   .name('nano-agent')
-  .description('Nano Agent - AI assistant with file tools and MCP support')
+  .description('Nano Agent - AI assistant')
   .action(() => {
     run().catch((error: unknown) => {
       Logger.log('ERROR', 'Fatal error', error);
