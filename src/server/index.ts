@@ -20,28 +20,13 @@ import type { ServerState } from '../ui/types.js';
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const server = net.createServer();
-    server.listen(port, '0.0.0.0', () => {
-      server.once('close', () => resolve(true));
-      server.close();
+    server.once('error', () => {
+      server.close(() => resolve(false));
     });
-    server.on('error', () => resolve(false));
-  });
-}
-
-/**
- * 获取一个可用的端口号
- * 让系统自动分配一个空闲端口
- * @returns 可用的端口号，如果失败则返回默认端口 3847
- */
-function getAvailablePort(): Promise<number> {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.listen(0, '0.0.0.0', () => {
-      const address = server.address();
-      const port =
-        typeof address === 'object' && address !== null ? address.port : null;
-      server.close(() => resolve(port ?? 3847));
+    server.once('listening', () => {
+      server.close(() => resolve(true));
     });
+    server.listen(port, '0.0.0.0');
   });
 }
 
@@ -60,6 +45,9 @@ class ServerManager {
   private statusCallback: ServerStatusCallback | null = null;
   private enableTunnel = false;
   private tunnelFailed = false;
+
+  private readonly PORT_START = 3847;
+  private readonly PORT_END = 3866;
 
   private constructor() {
     const configPath = Config.findConfigFile('config.yaml');
@@ -165,6 +153,11 @@ class ServerManager {
   /**
    * 启动 HTTP Server
    * 会依次：设置路由 → 初始化 WebSocket → 启动 HTTP 监听 → 启动 Tunnel（可选）
+   * 
+   * 采用双重保险机制避免端口冲突：
+   * 1. 启动前扫描端口范围（3847-3866），找到第一个可用端口
+   * 2. 启动失败时自动尝试下一个端口（处理竞态条件）
+   * 
    * @param options - 启动选项
    * @param options.enableTunnel - 是否启用 Cloudflare Tunnel 以获取公网访问地址
    * @returns 启动结果，包含 success 和可能的 error 信息
@@ -181,25 +174,29 @@ class ServerManager {
 
     const workspaceDir = process.cwd();
 
-    if (this.config.logging.enableLogging) {
-      Logger.initialize(undefined, 'server');
-      Logger.log('SERVER', 'Starting server', {
-        workspaceDir,
-        enableTunnel: options.enableTunnel,
-      });
-    }
+    Logger.initialize(undefined, 'server', this.config.logging.enableLogging);
+    Logger.log('SERVER', 'Starting server', {
+      workspaceDir,
+      enableTunnel: options.enableTunnel,
+    });
 
     if (!fs.existsSync(workspaceDir)) {
       fs.mkdirSync(workspaceDir, { recursive: true });
     }
 
+    const configPort = this.config.openaiHttpServer?.port || this.PORT_START;
     let port: number;
-    const configPort = this.config.openaiHttpServer?.port;
 
-    if (configPort && (await isPortAvailable(configPort))) {
-      port = configPort;
-    } else {
-      port = await getAvailablePort();
+    try {
+      port = await this.findAvailablePort(configPort);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'No available ports';
+      this.notifyStatus({
+        status: 'error',
+        error: errorMessage,
+      });
+      return { success: false, error: errorMessage };
     }
 
     this.currentPort = port;
@@ -210,45 +207,25 @@ class ServerManager {
       localUrl: this.getLocalUrl(),
     });
 
-    if (this.config.logging.enableLogging) {
-      Logger.log('SERVER', `Using port: ${port}`);
-    }
+    Logger.log('SERVER', `Using port: ${port}`);
 
     try {
       await setupOpenAIRoutes(this.config, workspaceDir);
-      if (this.config.logging.enableLogging) {
-        Logger.log('SERVER', 'OpenAI routes configured');
-      }
+      Logger.log('SERVER', 'OpenAI routes configured');
 
       initWebSocket();
-      if (this.config.logging.enableLogging) {
-        Logger.log('SERVER', 'WebSocket initialized');
-      }
+      Logger.log('SERVER', 'WebSocket initialized');
 
-      await new Promise<void>((resolve, reject) => {
-        httpServer.listen(port, '0.0.0.0', () => {
-          if (this.config.logging.enableLogging) {
-            Logger.log('SERVER', `HTTP server listening on port ${port}`);
-          }
-          resolve();
-        });
-        httpServer.on('error', (err) => {
-          reject(err);
-        });
-      });
+      await this.listenOnPort(port);
 
       this.isServerRunning = true;
 
       if (options.enableTunnel) {
         try {
           const url = await startTunnel(port);
-          if (this.config.logging.enableLogging) {
-            Logger.log('SERVER', `Tunnel started: ${url}`);
-          }
+          Logger.log('SERVER', `Tunnel started: ${url}`);
         } catch (tunnelError) {
-          if (this.config.logging.enableLogging) {
-            Logger.log('SERVER', `Tunnel failed: ${tunnelError}`);
-          }
+          Logger.log('SERVER', `Tunnel failed: ${tunnelError}`);
           this.tunnelFailed = true;
           this.notifyStatus({
             status: 'local',
@@ -270,8 +247,26 @@ class ServerManager {
 
       return { success: true };
     } catch (error) {
-      this.isServerRunning = false;
-      this.currentPort = null;
+      const err = error as NodeJS.ErrnoException;
+
+      if (err.code === 'EADDRINUSE') {
+        Logger.log('SERVER', `Port ${port} still in use, trying ${port + 1}`);
+        this.cleanupOnError();
+
+        const nextPort = port + 1;
+        if (nextPort <= this.PORT_END) {
+          return this.start(options);
+        } else {
+          const errorMessage = `All ports in range ${this.PORT_START}-${this.PORT_END} are occupied`;
+          this.notifyStatus({
+            status: 'error',
+            error: errorMessage,
+          });
+          return { success: false, error: errorMessage };
+        }
+      }
+
+      this.cleanupOnError();
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.notifyStatus({
@@ -291,9 +286,7 @@ class ServerManager {
       return;
     }
 
-    if (this.config.logging.enableLogging) {
-      Logger.log('SERVER', 'Stopping server...');
-    }
+    Logger.log('SERVER', 'Stopping server...');
 
     await stopTunnel();
 
@@ -310,9 +303,7 @@ class ServerManager {
 
     this.notifyStatus({ status: 'stopped' });
 
-    if (this.config.logging.enableLogging) {
-      Logger.log('SERVER', 'Server stopped');
-    }
+    Logger.log('SERVER', 'Server stopped');
   }
 
   /**
@@ -329,6 +320,61 @@ class ServerManager {
    */
   getPort(): number | null {
     return this.currentPort;
+  }
+
+  /**
+   * 在指定端口范围内查找可用端口
+   * @param startPort - 起始端口号
+   * @returns 第一个可用的端口号
+   * @throws 如果没有可用端口
+   */
+  private async findAvailablePort(startPort: number): Promise<number> {
+    for (let port = startPort; port <= this.PORT_END; port++) {
+      const available = await isPortAvailable(port);
+      if (available) {
+        return port;
+      }
+    }
+    throw new Error(
+      `No available ports in range ${this.PORT_START}-${this.PORT_END}`
+    );
+  }
+
+  /**
+   * 清理服务器错误状态
+   * 在启动失败时调用，确保状态一致性
+   */
+  private cleanupOnError(): void {
+    shutdownWebSocket();
+
+    try {
+      httpServer.removeAllListeners('error');
+      httpServer.close();
+    } catch {
+      // Ignore errors during cleanup
+    }
+
+    this.isServerRunning = false;
+    this.currentPort = null;
+    this.tunnelFailed = false;
+  }
+
+  /**
+   * 在指定端口上启动 HTTP 服务器监听
+   * @param port - 监听端口
+   * @returns Promise，成功时 resolve，失败时 reject
+   */
+  private async listenOnPort(port: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      httpServer.listen(port, '0.0.0.0', () => {
+        Logger.log('SERVER', `HTTP server listening on port ${port}`);
+        resolve();
+      });
+
+      httpServer.once('error', (err: NodeJS.ErrnoException) => {
+        reject(err);
+      });
+    });
   }
 }
 

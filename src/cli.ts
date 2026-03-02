@@ -23,9 +23,7 @@ export async function run(): Promise<void> {
   const config = Config.fromYaml(configPath);
 
   // 启动日志
-  if (config.logging.enableLogging) {
-    Logger.initialize(undefined, 'agent');
-  }
+  Logger.initialize(undefined, 'agent', config.logging.enableLogging);
 
   // 记录启动日志
   Logger.log('STARTUP', 'Configuration loaded', {

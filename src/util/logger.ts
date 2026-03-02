@@ -6,12 +6,15 @@ export class Logger {
   private static logFile: string | null = null;
   private static initialized = false;
   private static mode: 'agent' | 'server' = 'agent';
+  private static enabled = false;
 
   static initialize(
     logDir?: string,
-    mode: 'agent' | 'server' = 'agent'
+    mode: 'agent' | 'server' = 'agent',
+    enabled?: boolean
   ): string {
     this.mode = mode;
+    this.enabled = enabled ?? false;
 
     if (this.initialized) {
       return this.logFile ?? '';
@@ -48,6 +51,8 @@ export class Logger {
   }
 
   static log(category: string, message: string, data?: any) {
+    if (!this.enabled) return;
+
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
