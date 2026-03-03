@@ -22,15 +22,9 @@ retry:
 
 # ===== Tools Configuration =====
 tools:
-  skillsDir: './skills' # Directory containing skills (each skill is a folder with SKILL.md)
-  mcpConfigPath: 'mcp.json' # MCP configuration file path
+  skillsDir: './skills'
+  mcpConfigPath: 'mcp.json'
   mcp:
     connectTimeout: 10.0
     executeTimeout: 60.0
     sseReadTimeout: 120.0
-
-# ===== OpenAI HTTP Server Configuration =====
-# Provides OpenAI-compatible HTTP API for external clients
-openaiHttpServer:
-  # Optional: HTTP server port. If not specified or port is in use, an available port will be automatically selected.
-  # port: 3847

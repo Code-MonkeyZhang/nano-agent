@@ -184,11 +184,9 @@ class ServerManager {
       fs.mkdirSync(workspaceDir, { recursive: true });
     }
 
-    const configPort = this.config.openaiHttpServer?.port || this.PORT_START;
     let port: number;
-
     try {
-      port = await this.findAvailablePort(configPort);
+      port = await this.findAvailablePort(this.PORT_START);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'No available ports';
