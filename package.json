@@ -18,7 +18,7 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "preflight": "npm run build && npm run test:run && npm run lint && npm link",
-    "server": "tsx src/server/index.ts",
+    "server": "tsx src/server/standalone.ts",
     "prepare": "node scripts/prepare-cloudflared.mjs",
     "prepare:all": "node scripts/prepare-cloudflared.mjs --platform all"
   },

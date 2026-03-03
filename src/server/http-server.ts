@@ -1,6 +1,7 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import { createServer as createHttpServer } from 'http';
+import cors from 'cors';
 import { Config } from '../config.js';
 import { AgentCore } from '../agent.js';
 import { createChatRouter } from './chat.js';
@@ -13,6 +14,20 @@ let globalAgent: AgentCore | null = null;
 export function getGlobalAgent(): AgentCore | null {
   return globalAgent;
 }
+
+app.use(
+  cors({
+    origin: [
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:5174',
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 
 app.use(express.json());
 
