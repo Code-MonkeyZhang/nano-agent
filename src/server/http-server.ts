@@ -10,19 +10,44 @@ import { Logger } from '../util/logger.js';
 const app = express();
 
 let globalAgent: AgentCore | null = null;
+let globalAbortController: AbortController | null = null;
 
 export function getGlobalAgent(): AgentCore | null {
   return globalAgent;
 }
 
+export function getGlobalAbortController(): AbortController | null {
+  return globalAbortController;
+}
+
+export function createGlobalAbortController(): AbortController {
+  globalAbortController = new AbortController();
+  return globalAbortController;
+}
+
+export function clearGlobalAbortController(): void {
+  globalAbortController = null;
+}
+
 app.use(
   cors({
-    origin: [
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:5174',
-    ],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const allowedOrigins = [
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://127.0.0.1:5173',
+        'http://127.0.0.1:5174',
+      ];
+      const isLocalhost =
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:');
+      if (allowedOrigins.includes(origin) || isLocalhost) {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -83,6 +108,25 @@ app.get('/health', (_req: Request, res: Response) => {
     alive: true,
     timestamp: Date.now(),
   });
+});
+
+/**
+ * Abort endpoint - Abort LLM stream
+ * @route POST /api/control/abort
+ * @param req - Express request object
+ * @param res - Express response object
+ * @returns {Object} JSON response with success status
+ */
+app.post('/api/control/abort', (_req: Request, res: Response) => {
+  Logger.log('HTTP', 'Abort request received');
+
+  if (globalAbortController) {
+    globalAbortController.abort();
+    globalAbortController = null;
+    Logger.log('HTTP', 'Generation aborted');
+  }
+
+  res.json({ success: true });
 });
 
 const httpServer = createHttpServer(app);

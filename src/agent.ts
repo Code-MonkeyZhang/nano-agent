@@ -18,6 +18,7 @@ import {
 } from './tools/index.js';
 import type { Message, ToolCall, AgentEvent } from './schema/index.js';
 import { SkillLoader, GetSkillTool } from './skills/index.js';
+import { getGlobalAbortController } from './server/http-server.js';
 
 /**
  * Find the project root directory by searching for package.json.
@@ -266,23 +267,31 @@ export class AgentCore {
     }
   }
 
+  // 生成LLM输出的核心函数
   async *runStream(): AsyncGenerator<AgentEvent, string, void> {
     if (!this.llmClient) {
       throw new Error('AgentCore not initialized. Call initialize() first.');
     }
 
+    // ReAct主循环
     for (let step = 0; step < this.maxSteps; step++) {
       yield { type: 'step_start', step: step + 1, maxSteps: this.maxSteps };
 
       let fullContent = '';
       let fullThinking = '';
       let toolCalls: ToolCall[] | null = null;
-
       const toolList = this.listTools();
+
       for await (const chunk of this.llmClient.generateStream(
         this.messages,
         toolList
       )) {
+        // 在流式响应时进行abort检查
+        const abortCtrl = getGlobalAbortController();
+        if (abortCtrl?.signal.aborted) {
+          return '';
+        }
+
         if (chunk.thinking) {
           yield { type: 'thinking', content: chunk.thinking };
           fullThinking += chunk.thinking;
@@ -312,6 +321,12 @@ export class AgentCore {
       yield { type: 'tool_call', tool_calls: toolCalls };
 
       for (const toolCall of toolCalls) {
+        // 在Tool use时进行abort检查
+        const abortCtrl = getGlobalAbortController();
+        if (abortCtrl?.signal.aborted) {
+          return '';
+        }
+
         const toolCallId = toolCall.id;
         const functionName = toolCall.function.name;
         const args = toolCall.function.arguments || {};

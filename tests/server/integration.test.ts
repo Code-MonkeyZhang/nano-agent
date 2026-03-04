@@ -138,7 +138,7 @@ maybeDescribe('Integration Tests', () => {
     // expect(content.length).toBeGreaterThan(0); // Content might be empty if only thinking occurred or tool use
   }, 30000);
 
-  it('Non-Streaming Response', async () => {
+  it('Non-Streaming Response - Should return 501', async () => {
     const payload = {
       model: 'gpt-4',
       messages: [{ role: 'user', content: 'Hi' }],
@@ -151,14 +151,10 @@ maybeDescribe('Integration Tests', () => {
       body: JSON.stringify(payload),
     });
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get('content-type')).toContain('application/json');
-
+    // Non-streaming mode is not supported, should return 501
+    expect(response.status).toBe(501);
     const data = (await response.json()) as any;
-    expect(data.object).toBe('chat.completion');
-    expect(data.choices).toBeInstanceOf(Array);
-    expect(data.choices.length).toBeGreaterThan(0);
-    expect(data.choices[0].message.content).toBeDefined();
+    expect(data.error.type).toBe('not_implemented');
   }, 30000);
 
   it('Context Retention (Chat History)', async () => {
@@ -171,7 +167,7 @@ maybeDescribe('Integration Tests', () => {
         { role: 'assistant', content: 'Hello! Nice to meet you.' },
         { role: 'user', content: 'What is my name?' },
       ],
-      stream: false,
+      stream: true,
     };
 
     const response = await fetch(`${BASE_URL}/chat/completions`, {
@@ -180,10 +176,38 @@ maybeDescribe('Integration Tests', () => {
       body: JSON.stringify(payload),
     });
 
-    const data = (await response.json()) as any;
-    const content = data.choices[0].message.content;
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/event-stream');
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+
+    while (true) {
+      const { done, value } = await reader!.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (line.trim().startsWith('data: ')) {
+          const dataStr = line.replace('data: ', '').trim();
+          if (dataStr === '[DONE]') continue;
+
+          try {
+            const data = JSON.parse(dataStr);
+            if (data.choices?.[0]?.delta?.content) {
+              fullContent += data.choices[0].delta.content;
+            }
+          } catch {
+            // Ignore parse errors
+          }
+        }
+      }
+    }
 
     // Check if the LLM mentions the name from the history
-    expect(content).toContain('IntegrationTestUser');
+    expect(fullContent).toContain('IntegrationTestUser');
   }, 30000);
 });

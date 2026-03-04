@@ -4,12 +4,13 @@ import type { Request, Response } from 'express';
 
 import { SSEWriter } from './sse-writer.js';
 import { convertOpenAIRequest } from './converters/openai-to-nanoagent.js';
-import type {
-  ChatCompletionRequest,
-  ChatCompletionResponse,
-} from './types/openai-types.js';
+import type { ChatCompletionRequest } from './types/openai-types.js';
 import { Logger } from '../util/logger.js';
-import { getGlobalAgent } from './http-server.js';
+import {
+  getGlobalAgent,
+  createGlobalAbortController,
+  clearGlobalAbortController,
+} from './http-server.js';
 
 /**
  * Creates an OpenAI-compatible chat router.
@@ -21,60 +22,92 @@ import { getGlobalAgent } from './http-server.js';
 export function createChatRouter(): Router {
   const router = Router();
 
+  /**
+   * OpenAI 兼容的聊天补全端点
+   *
+   * 接收 OpenAI 格式的聊天补全请求
+   * - 验证请求消息格式
+   * - 将请求转换为内部格式
+   * - 调用 AgentCore 处理消息
+   * - 通过 SSE 返回流式响应或同步返回完整响应
+   */
   router.post('/completions', async (req: Request, res: Response) => {
     const requestId = randomUUID();
-    const body = req.body as ChatCompletionRequest; // Parse OpenAI-compatible request
+    const body = req.body as ChatCompletionRequest; // 创建请求体
 
     try {
       if (!body.messages || !Array.isArray(body.messages)) {
-        throw new Error('Invalid messages array'); // Validate messages field
+        throw new Error('Invalid messages array');
       }
 
-      const { messages } = convertOpenAIRequest(body); // Convert OpenAI format to internal format
+      const { messages } = convertOpenAIRequest(body);
 
-      const agent = getGlobalAgent(); // Retrieve shared AgentCore instance
+      const agent = getGlobalAgent();
       if (!agent) {
         throw new Error('AgentCore not initialized');
       }
 
-      agent.messages = [{ role: 'system', content: agent.systemPrompt }]; // Reset with system prompt
+      // Reset messages with system prompt
+      agent.messages = [{ role: 'system', content: agent.systemPrompt }];
 
-      if (messages.length > 1) {
-        const historyMessages = messages.slice(0, messages.length - 1);
-        agent.messages.push(...historyMessages);
-        Logger.log(
-          'CHAT',
-          `Injected ${historyMessages.length} history messages`
-        );
-      }
-
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg?.role === 'user') {
-        let content = '';
-        if (typeof lastMsg.content === 'string') {
-          content = lastMsg.content;
-        } else if (Array.isArray(lastMsg.content)) {
-          content = lastMsg.content
-            .filter((b) => b.type === 'text')
-            .map((b) => b.text)
-            .join('\n');
+      // Add all conversation messages
+      for (const msg of messages) {
+        if (msg.role === 'user') {
+          const content =
+            typeof msg.content === 'string'
+              ? msg.content
+              : Array.isArray(msg.content)
+                ? msg.content
+                    .filter((b) => b.type === 'text') // only extract text since it could be text + image
+                    .map((b) => b.text)
+                    .join('\n')
+                : '';
+          agent.messages.push({ role: 'user', content });
+        } else {
+          agent.messages.push(msg);
         }
-        agent.addUserMessage(content);
-        Logger.log('CHAT', `User message preview: ${content.slice(0, 100)}...`);
       }
 
-      const modelName = agent.config.llm.model; // Get model name for response
+      Logger.log('CHAT', `Loaded ${messages.length} messages from request`);
 
+      const modelName = agent.config.llm.model;
+      const abortController = createGlobalAbortController();
+      const signal = abortController.signal;
+
+      // generate text stream
       if (body.stream) {
-        // Streaming mode: send events via SSE
-        const sse = new SSEWriter(res); // Initialize SSE writer for streaming response
+        const sse = new SSEWriter(res);
+        let wasAborted = false;
         try {
           for await (const event of agent.runStream()) {
-            // Iterate through agent execution events
-            const timestamp = Math.floor(Date.now() / 1000); // Unix timestamp for each chunk
+            if (signal.aborted) {
+              Logger.log('CHAT', 'Generation aborted by user');
+              // Send abort info to client
+              sse.write({
+                id: requestId,
+                object: 'chat.completion.chunk',
+                created: Math.floor(Date.now() / 1000),
+                model: modelName,
+                choices: [
+                  {
+                    index: 0,
+                    delta: {
+                      content: '\n\n⚠️ **生成已被用户中断**',
+                    },
+                    finish_reason: 'stop',
+                  },
+                ],
+              });
+
+              wasAborted = true;
+              sse.done();
+              break;
+            }
+
+            const timestamp = Math.floor(Date.now() / 1000);
 
             switch (event.type) {
-              case 'thinking': // Agent reasoning process
+              case 'thinking':
                 sse.write({
                   id: requestId,
                   object: 'chat.completion.chunk',
@@ -90,7 +123,7 @@ export function createChatRouter(): Router {
                 });
                 break;
 
-              case 'content': // Generated text output
+              case 'content':
                 sse.write({
                   id: requestId,
                   object: 'chat.completion.chunk',
@@ -107,7 +140,6 @@ export function createChatRouter(): Router {
                 break;
 
               case 'tool_call': {
-                // Tool invocation
                 const toolBlocks = event.tool_calls
                   .map((tc) => {
                     try {
@@ -142,7 +174,6 @@ export function createChatRouter(): Router {
               }
 
               case 'tool_result': {
-                // Tool execution result
                 const resultBlock = event.result.success
                   ? `\n\n✅ **Tool Result (${event.toolName})**\n\`\`\`\n${
                       event.result.content.length > 500
@@ -167,7 +198,7 @@ export function createChatRouter(): Router {
                 break;
               }
 
-              case 'step_start': // Multi-step execution marker
+              case 'step_start':
                 sse.write({
                   id: requestId,
                   object: 'chat.completion.chunk',
@@ -185,7 +216,7 @@ export function createChatRouter(): Router {
                 });
                 break;
 
-              case 'error': // Execution error
+              case 'error':
                 sse.write({
                   id: requestId,
                   object: 'chat.completion.chunk',
@@ -205,47 +236,23 @@ export function createChatRouter(): Router {
             }
           }
 
-          sse.done(); // Signal end of stream
+          if (!wasAborted) {
+            sse.done();
+          }
         } catch (error) {
           sse.error(error instanceof Error ? error : new Error(String(error)));
+        } finally {
+          clearGlobalAbortController();
         }
       } else {
-        // Non-streaming mode: wait for complete response
-        let fullContent = ''; // Accumulate all content events
-        const iterator = agent.runStream(); // Run agent and iterate through events
-        let result = await iterator.next();
-
-        while (!result.done) {
-          // Consume iterator until completion
-          const event = result.value;
-          if (event.type === 'content') {
-            fullContent += event.content;
-          }
-          result = await iterator.next();
-        }
-
-        const finalContent =
-          typeof result.value === 'string' ? result.value : fullContent;
-
-        const response: ChatCompletionResponse = {
-          // Build OpenAI-compatible response
-          id: requestId,
-          object: 'chat.completion',
-          created: Math.floor(Date.now() / 1000),
-          model: modelName,
-          choices: [
-            {
-              index: 0,
-              message: {
-                role: 'assistant',
-                content: finalContent || null,
-              },
-              finish_reason: 'stop',
-            },
-          ],
-        };
-
-        res.json(response);
+        // Non-streaming mode not implemented
+        res.status(501).json({
+          error: {
+            message:
+              'Non-streaming mode is not supported. Please use stream: true.',
+            type: 'not_implemented',
+          },
+        });
       }
     } catch (error: unknown) {
       const errorMessage =
