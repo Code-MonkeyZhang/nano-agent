@@ -29,6 +29,7 @@ export interface ChatCompletionRequest {
     | 'none'
     | 'auto'
     | { type: 'function'; function: { name: string } };
+  sessionId?: string;
 }
 
 export interface ToolDefinition {
