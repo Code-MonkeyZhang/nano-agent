@@ -21,6 +21,7 @@ agent_memory
 config/config.yaml
 config/mcp.json
 skills/*
+.nano-agent
 
 # log
 logs
