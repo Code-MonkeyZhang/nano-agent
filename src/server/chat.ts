@@ -11,6 +11,47 @@ import {
   createGlobalAbortController,
   clearGlobalAbortController,
 } from './http-server.js';
+import { getGlobalSessionManager } from './sessions.js';
+import type { Message } from '../schema/index.js';
+
+const MAX_TITLE_LENGTH = 30;
+
+/**
+ * Extracts text content from a message.
+ */
+function extractTextContent(
+  content: string | unknown[] | unknown
+): string | null {
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content
+      .filter((b): b is { type: string; text: string } => b.type === 'text')
+      .map((b) => b.text)
+      .join('\n');
+  }
+  return null;
+}
+
+/**
+ * Generates a title from user message content.
+ * Takes the first 30 characters of the first user message.
+ * TODO: 以后要修改成LLM自动总结 title, 当前改动不会反映在前端上, 因为前端只加载一次
+ */
+function generateTitle(messages: Message[]): string {
+  for (const msg of messages) {
+    if (msg.role === 'user') {
+      const text = extractTextContent(msg.content);
+      if (text) {
+        return text.length > MAX_TITLE_LENGTH
+          ? `${text.slice(0, MAX_TITLE_LENGTH)}...`
+          : text;
+      }
+    }
+  }
+  return 'New Chat';
+}
 
 /**
  * Creates an OpenAI-compatible chat router.
@@ -33,42 +74,63 @@ export function createChatRouter(): Router {
    */
   router.post('/completions', async (req: Request, res: Response) => {
     const requestId = randomUUID();
-    const body = req.body as ChatCompletionRequest; // 创建请求体
+    const body = req.body as ChatCompletionRequest;
 
     try {
       if (!body.messages || !Array.isArray(body.messages)) {
         throw new Error('Invalid messages array');
       }
 
-      const { messages } = convertOpenAIRequest(body);
+      const { messages: requestMessages } = convertOpenAIRequest(body); // 把前端发来的 OpenAI 格式转换成 nano-agent 内部使用的格式 TODO: 以后可能要改
+      const sessionId = body.sessionId; // 获取前端传过来的session id
 
       const agent = getGlobalAgent();
       if (!agent) {
         throw new Error('AgentCore not initialized');
       }
 
-      // Reset messages with system prompt
+      const sessionManager = getGlobalSessionManager();
+      let isNewSession = false;
+
+      // 使用当前的 systemPrompt
       agent.messages = [{ role: 'system', content: agent.systemPrompt }];
 
-      // Add all conversation messages
-      for (const msg of messages) {
+      // Load history from session (skip system prompt)
+      if (sessionId && sessionManager) {
+        const session = sessionManager.getSession(sessionId);
+        if (session) {
+          for (const msg of session.messages) {
+            if (msg.role !== 'system') {
+              agent.messages.push(msg);
+            }
+          }
+          isNewSession = session.messageCount === 0;
+          Logger.log(
+            'CHAT',
+            `Loaded ${session.messages.length} messages from session ${sessionId}`
+          );
+        } else {
+          Logger.log('CHAT', `Session ${sessionId} not found, ignoring`);
+        }
+      }
+
+      // Track the starting message count for later saving
+      const historyLength = agent.messages.length;
+
+      // Add new messages from request
+      for (const msg of requestMessages) {
         if (msg.role === 'user') {
-          const content =
-            typeof msg.content === 'string'
-              ? msg.content
-              : Array.isArray(msg.content)
-                ? msg.content
-                    .filter((b) => b.type === 'text') // only extract text since it could be text + image
-                    .map((b) => b.text)
-                    .join('\n')
-                : '';
+          const content = extractTextContent(msg.content) ?? '';
           agent.messages.push({ role: 'user', content });
         } else {
           agent.messages.push(msg);
         }
       }
 
-      Logger.log('CHAT', `Loaded ${messages.length} messages from request`);
+      Logger.log(
+        'CHAT',
+        `Loaded ${requestMessages.length} new messages from request`
+      );
 
       const modelName = agent.config.llm.model;
       const abortController = createGlobalAbortController();
@@ -238,6 +300,29 @@ export function createChatRouter(): Router {
 
           if (!wasAborted) {
             sse.done();
+
+            // Save messages to session after successful completion
+            if (sessionId && sessionManager) {
+              const lastMsg = agent.messages[agent.messages.length - 1];
+              if (lastMsg && lastMsg.role === 'assistant') {
+                const newMessages = agent.messages.slice(historyLength);
+                for (const msg of newMessages) {
+                  sessionManager.appendMessage(sessionId, msg);
+                }
+
+                // Auto-generate title for new sessions
+                if (isNewSession) {
+                  const title = generateTitle(newMessages);
+                  sessionManager.updateTitle(sessionId, title);
+                  Logger.log('CHAT', `Generated title for session: ${title}`);
+                }
+
+                Logger.log(
+                  'CHAT',
+                  `Saved ${newMessages.length} messages to session ${sessionId}`
+                );
+              }
+            }
           }
         } catch (error) {
           sse.error(error instanceof Error ? error : new Error(String(error)));

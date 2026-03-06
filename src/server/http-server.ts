@@ -5,6 +5,8 @@ import cors from 'cors';
 import { Config } from '../config.js';
 import { AgentCore } from '../agent.js';
 import { createChatRouter } from './chat.js';
+import { createSessionRouter } from './sessions.js';
+import { createConfigRouter } from './config-router.js';
 import { Logger } from '../util/logger.js';
 
 const app = express();
@@ -77,6 +79,8 @@ export async function setupOpenAIRoutes(config: Config, workspaceDir: string) {
   await globalAgent.initialize();
 
   app.use('/v1/chat', createChatRouter());
+  app.use('/api/sessions', createSessionRouter());
+  app.use('/api/config', createConfigRouter());
 
   Logger.log('HTTP', 'Routes configured');
 }
