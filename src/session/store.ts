@@ -118,6 +118,15 @@ export class SessionStore {
   }
 
   /**
+   * Returns the sessions directory path.
+   *
+   * @returns Absolute path to the sessions directory
+   */
+  getSessionsPath(): string {
+    return this.sessionsDir;
+  }
+
+  /**
    * Deletes a session file from disk.
    *
    * @param id - Session identifier
