@@ -64,7 +64,7 @@ export function HistoryItem({ item, agent, terminalWidth }: HistoryItemProps) {
     case 'mcp':
       return <McpMessage />;
     case 'skill':
-      return <SkillMessage agent={agent} />;
+      return <SkillMessage />;
     case 'server_status':
       return <ServerStatusMessage state={item.state} />;
     default:

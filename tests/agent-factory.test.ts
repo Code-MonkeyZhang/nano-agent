@@ -87,7 +87,9 @@ describe('AgentFactory', () => {
       expect(agent.runConfig.model).toBe('gpt-4o');
       expect(agent.runConfig.provider).toBe('openai');
       expect(agent.runConfig.apiBase).toBe('https://api.test.com/v1');
-      expect(agent.runConfig.systemPrompt).toContain('You are a test agent.');
+      expect(agent.runConfig.baseSystemPrompt).toContain(
+        'You are a test agent.'
+      );
       expect(agent.runConfig.maxSteps).toBe(5);
       expect(agent.tools.size).toBeGreaterThan(0);
     });

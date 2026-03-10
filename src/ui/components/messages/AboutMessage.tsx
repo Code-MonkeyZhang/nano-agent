@@ -7,14 +7,14 @@ interface AboutMessageProps {
 }
 
 export function AboutMessage({ agent }: AboutMessageProps) {
-  const config = agent.config;
+  const config = agent.runConfig;
 
   const info = [
     { label: 'Version', value: '1.0.0' },
-    { label: 'Model', value: config.llm.model },
-    { label: 'Provider', value: config.llm.provider },
-    { label: 'API Base', value: config.llm.apiBase },
-    { label: 'Max Steps', value: String(config.agent.maxSteps) },
+    { label: 'Model', value: config.model },
+    { label: 'Provider', value: config.provider },
+    { label: 'API Base', value: config.apiBase },
+    { label: 'Max Steps', value: String(config.maxSteps) },
     { label: 'Workspace', value: agent.workspaceDir },
     { label: 'Tools', value: `${agent.tools.size} loaded` },
   ];
