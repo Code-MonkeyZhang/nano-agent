@@ -14,7 +14,7 @@ Thumbs.db
 dist
 
 #agent 
-agent_memory
+data/
 
 
 # Config

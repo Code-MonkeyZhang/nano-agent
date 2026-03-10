@@ -1,30 +1,14 @@
-# Nano Agent Configuration Example
+# Nano Agent Configuration
 #
+# Server-level settings. Agent and credential configurations are stored
+# separately in the data/ directory.
 
-# ===== LLM Configuration =====
-# Choose your LLM provider and configure accordingly
-apiKey: 'YOUR_API_KEY_HERE'
-apiBase: 'https://api.deepseek.com/v1'
-model: 'deepseek-chat'
-provider: 'openai' # "anthropic" or "openai"
+# Enable file logging to project-root/logs/
+enableLogging: false
 
-# ===== Logging Configuration =====
-enableLogging: false # Enable file logging to project-root/logs/
-
-# ===== Agent Configuration =====
-maxSteps: 50 # Maximum execution steps
-systemPromptPath: 'system_prompt.md' # System prompt file (same config directory)
-
-# ===== Retry Configuration =====
-retry:
-  enabled: true # Enable retry mechanism
-  maxRetries: 3 # Maximum number of retries
-
-# ===== Tools Configuration =====
+# Tools Configuration
 tools:
+  # Directory containing skill files
   skillsDir: './skills'
+  # Path to MCP server configuration file
   mcpConfigPath: 'mcp.json'
-  mcp:
-    connectTimeout: 10.0
-    executeTimeout: 60.0
-    sseReadTimeout: 120.0

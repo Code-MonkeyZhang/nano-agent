@@ -1,33 +1,37 @@
 import { describe, it, expect } from 'vitest';
-import * as fs from 'node:fs';
-import { Config } from '../src/config.js';
 import { LLMClient } from '../src/llm-client/llm-client.js';
 import type { Message } from '../src/schema/schema.js';
 
 /**
  * LLM API Integration Test
  *
- * This is an integration test that will make real calls to LLM API.
- * Before running, ensure `nano-agent/config/config.yaml` is configured correctly
- * (when running from `nano-agent/`, the path is `./config/config.yaml`) and that
- * your environment allows network access.
+ * Uses environment variables for configuration:
+ * - TEST_API_KEY: Required - API key for the LLM provider
+ * - TEST_API_BASE: Optional - API base URL (default: DeepSeek)
+ * - TEST_PROVIDER: Optional - Provider type (default: openai)
+ * - TEST_MODEL: Optional - Model name (default: deepseek-chat)
  */
-const configPath = Config.findConfigFile('config.yaml');
-let config: Config | null = null;
-let skipReason: string | null = null;
-
-if (!configPath) {
-  skipReason = 'config.yaml not found';
-} else if (!fs.existsSync(configPath)) {
-  skipReason = `config.yaml not found at resolved path: ${configPath}`;
-} else {
-  try {
-    config = Config.fromYaml(configPath);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    skipReason = `config.yaml exists but is not usable: ${message}`;
+function getTestConfig(): {
+  apiKey: string;
+  apiBase: string;
+  provider: string;
+  model: string;
+} | null {
+  const apiKey = process.env['TEST_API_KEY'];
+  if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
+    return null;
   }
+
+  return {
+    apiKey,
+    apiBase: process.env['TEST_API_BASE'] ?? 'https://api.deepseek.com/v1',
+    provider: process.env['TEST_PROVIDER'] ?? 'openai',
+    model: process.env['TEST_MODEL'] ?? 'deepseek-chat',
+  };
 }
+
+const testConfig = getTestConfig();
+const skipReason = testConfig ? null : 'TEST_API_KEY environment variable not set';
 
 const maybeDescribe = skipReason ? describe.skip : describe;
 
@@ -37,16 +41,15 @@ if (skipReason) {
 
 maybeDescribe('LLM API Integration (stream)', () => {
   it('should stream a response from the configured LLM API', async () => {
-    if (!config || !configPath) {
-      throw new Error(`Unexpected: test ran but was gated off: ${skipReason}`);
+    if (!testConfig) {
+      throw new Error('Unexpected: test ran but was gated off');
     }
 
     const llmClient = new LLMClient(
-      config.llm.apiKey,
-      config.llm.apiBase,
-      config.llm.provider,
-      config.llm.model,
-      config.llm.retry
+      testConfig.apiKey,
+      testConfig.apiBase,
+      testConfig.provider,
+      testConfig.model
     );
 
     const messages: Message[] = [

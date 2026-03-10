@@ -1,17 +1,31 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { httpServer, setupOpenAIRoutes } from '../../src/server/http-server.js';
+import {
+  httpServer,
+  setupOpenAIRoutes,
+  setGlobalAgent,
+} from '../../src/server/http-server.js';
 import {
   initWebSocket,
   shutdownWebSocket,
 } from '../../src/server/websocket-server.js';
-import { Config } from '../../src/config.js';
+import { initBuiltinToolPool } from '../../src/builtin-tool-pool/store.js';
+import { initMcpPool } from '../../src/mcp-pool/store.js';
+import { initSkillPool } from '../../src/skill-pool/store.js';
+import {
+  initCredentialPool,
+  createCredential,
+} from '../../src/credential/store.js';
+import {
+  initAgentConfigStore,
+  listAgentConfigs,
+  updateAgentConfig,
+} from '../../src/agent-config/store.js';
+import { createAgent, setDefaultWorkspaceDir } from '../../src/agent-factory/index.js';
 import * as path from 'node:path';
+import * as fs from 'node:fs';
 import * as net from 'node:net';
 import { fileURLToPath } from 'node:url';
 
-/**
- * 找到一个可用端口
- */
 function findAvailablePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -27,30 +41,47 @@ function findAvailablePort(): Promise<number> {
 let PORT: number;
 let BASE_URL: string;
 
-// Get test directory path
 const testFileDir = path.dirname(fileURLToPath(import.meta.url));
 const testsDir = path.join(testFileDir, '..');
-const testConfigDir = path.join(testsDir, 'test-config');
-const testConfigPath = path.join(testConfigDir, 'config.yaml');
+const testDataDir = path.join(testsDir, 'test-data');
+const testWorkspaceDir = path.join(testsDir, 'config');
 
-// Configuration check for integration tests
-let config: Config | null = null;
-let skipReason: string | null = null;
-
-try {
-  config = Config.fromYaml(testConfigPath);
-  // Override MCP config path to absolute path to avoid Config.findConfigFile() searching in other locations
-  config.tools.mcpConfigPath = path.join(testConfigDir, 'mcp.json');
-  // Override skills dir to absolute path
-  config.tools.skillsDir = path.join(testConfigDir, 'skills');
-  // Check if API key is valid (not the placeholder value)
-  if (!config.llm?.apiKey || config.llm.apiKey === 'YOUR_API_KEY_HERE') {
-    skipReason = 'Invalid or missing API key in test config';
+function ensureTestDir(dir: string): void {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
-} catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
-  skipReason = `Test config is not usable: ${message}`;
 }
+
+/**
+ * Integration test configuration
+ *
+ * Uses environment variables for API credentials:
+ * - TEST_API_KEY: Required - API key for the LLM provider
+ * - TEST_API_BASE: Optional - API base URL (default: DeepSeek)
+ * - TEST_PROVIDER: Optional - Provider type (default: openai)
+ * - TEST_MODEL: Optional - Model name (default: deepseek-chat)
+ */
+function getTestConfig(): {
+  apiKey: string;
+  apiBase: string;
+  provider: 'openai' | 'anthropic';
+  model: string;
+} | null {
+  const apiKey = process.env['TEST_API_KEY'];
+  if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
+    return null;
+  }
+
+  return {
+    apiKey,
+    apiBase: process.env['TEST_API_BASE'] ?? 'https://api.deepseek.com/v1',
+    provider: (process.env['TEST_PROVIDER'] as 'openai' | 'anthropic') ?? 'openai',
+    model: process.env['TEST_MODEL'] ?? 'deepseek-chat',
+  };
+}
+
+const testConfig = getTestConfig();
+const skipReason = testConfig ? null : 'TEST_API_KEY environment variable not set';
 
 const maybeDescribe = skipReason ? describe.skip : describe;
 
@@ -59,29 +90,65 @@ if (skipReason) {
 }
 
 maybeDescribe('Integration Tests', () => {
-  // Start server before all tests
   beforeAll(async () => {
-    if (!config) {
-      throw new Error('Config not available for integration test');
+    if (!testConfig) {
+      throw new Error('Test config not available');
     }
 
-    // Find available port
     PORT = await findAvailablePort();
     BASE_URL = `http://localhost:${PORT}/v1`;
 
-    // Override env vars if needed
     process.env['NO_TUNNEL'] = '1';
 
-    // Setup Routes
-    await setupOpenAIRoutes(
-      config,
-      path.join(testsDir, 'config')
-    );
+    ensureTestDir(testDataDir);
+    ensureTestDir(testWorkspaceDir);
 
-    // Initialize services
+    setDefaultWorkspaceDir(testWorkspaceDir);
+
+    const credentialsPath = path.join(testDataDir, 'credentials.json');
+    const agentsPath = path.join(testDataDir, 'agents');
+
+    initCredentialPool(credentialsPath);
+    initAgentConfigStore(agentsPath);
+
+    const testCredential = createCredential({
+      name: 'Test Credential',
+      provider: testConfig.provider,
+      apiBase: testConfig.apiBase,
+      apiKey: testConfig.apiKey,
+    });
+
+    const agentConfigs = listAgentConfigs();
+    if (agentConfigs.length === 0) {
+      throw new Error('No agent configs found');
+    }
+
+    const defaultAgent = agentConfigs[0];
+    updateAgentConfig(defaultAgent.id, {
+      credentialId: testCredential.id,
+      model: testConfig.model,
+    });
+
+    initBuiltinToolPool(testWorkspaceDir);
+
+    const skillsDir = path.join(testsDir, 'test-config', 'skills');
+    if (fs.existsSync(skillsDir)) {
+      initSkillPool(skillsDir);
+    } else {
+      initSkillPool(testWorkspaceDir);
+    }
+
+    const mcpConfigPath = path.join(testsDir, 'test-config', 'mcp.json');
+    if (fs.existsSync(mcpConfigPath)) {
+      await initMcpPool(mcpConfigPath);
+    }
+
+    const agentCore = await createAgent(defaultAgent.id, testWorkspaceDir);
+    setGlobalAgent(agentCore);
+
+    await setupOpenAIRoutes();
     initWebSocket();
 
-    // Start HTTP server
     await new Promise<void>((resolve) => {
       httpServer.listen(PORT, '0.0.0.0', () => {
         resolve();
@@ -89,7 +156,6 @@ maybeDescribe('Integration Tests', () => {
     });
   });
 
-  // Stop server after all tests
   afterAll(async () => {
     shutdownWebSocket();
     httpServer.close();
@@ -135,7 +201,6 @@ maybeDescribe('Integration Tests', () => {
     }
 
     expect(hasDone).toBe(true);
-    // expect(content.length).toBeGreaterThan(0); // Content might be empty if only thinking occurred or tool use
   }, 30000);
 
   it('Non-Streaming Response - Should return 501', async () => {
@@ -151,15 +216,12 @@ maybeDescribe('Integration Tests', () => {
       body: JSON.stringify(payload),
     });
 
-    // Non-streaming mode is not supported, should return 501
     expect(response.status).toBe(501);
-    const data = (await response.json()) as any;
+    const data = (await response.json()) as { error: { type: string } };
     expect(data.error.type).toBe('not_implemented');
   }, 30000);
 
   it('Context Retention (Chat History)', async () => {
-    // We simulate sending a full history.
-    // Since the server is stateless, we must send the history in the messages array.
     const payload = {
       model: 'gpt-4',
       messages: [
@@ -196,7 +258,9 @@ maybeDescribe('Integration Tests', () => {
           if (dataStr === '[DONE]') continue;
 
           try {
-            const data = JSON.parse(dataStr);
+            const data = JSON.parse(dataStr) as {
+              choices?: Array<{ delta?: { content?: string } }>;
+            };
             if (data.choices?.[0]?.delta?.content) {
               fullContent += data.choices[0].delta.content;
             }
@@ -207,7 +271,6 @@ maybeDescribe('Integration Tests', () => {
       }
     }
 
-    // Check if the LLM mentions the name from the history
     expect(fullContent).toContain('IntegrationTestUser');
   }, 30000);
 });
