@@ -7,12 +7,13 @@ import { convertOpenAIRequest } from './converters/openai-to-nanoagent.js';
 import type { ChatCompletionRequest } from './types/openai-types.js';
 import { Logger } from '../util/logger.js';
 import {
-  getGlobalAgent,
   createGlobalAbortController,
   clearGlobalAbortController,
 } from './http-server.js';
 import { getGlobalSessionManager } from './sessions.js';
+import { createAgent } from '../agent-factory/index.js';
 import type { Message } from '../schema/index.js';
+import type { AgentId } from '../agent-config/types.js';
 
 const MAX_TITLE_LENGTH = 30;
 
@@ -81,21 +82,31 @@ export function createChatRouter(): Router {
         throw new Error('Invalid messages array');
       }
 
-      const { messages: requestMessages } = convertOpenAIRequest(body); // 把前端发来的 OpenAI 格式转换成 nano-agent 内部使用的格式 TODO: 以后可能要改
-      const sessionId = body.sessionId; // 获取前端传过来的session id
-
-      const agent = getGlobalAgent();
-      if (!agent) {
-        throw new Error('AgentCore not initialized');
-      }
+      const { messages: requestMessages } = convertOpenAIRequest(body);
+      const sessionId = body.sessionId;
 
       const sessionManager = getGlobalSessionManager();
+      let agentId: AgentId = 'adam';
       let isNewSession = false;
 
-      // 使用当前的 systemPrompt
+      if (sessionId && sessionManager) {
+        const session = sessionManager.getSession(sessionId);
+        if (session) {
+          agentId = session.agentId;
+          isNewSession = session.messageCount === 0;
+          Logger.log('CHAT', `Session ${sessionId} bound to agent ${agentId}`);
+        } else {
+          Logger.log(
+            'CHAT',
+            `Session ${sessionId} not found, using default agent`
+          );
+        }
+      }
+
+      const agent = await createAgent(agentId);
+
       agent.messages = [{ role: 'system', content: agent.systemPrompt }];
 
-      // Load history from session (skip system prompt)
       if (sessionId && sessionManager) {
         const session = sessionManager.getSession(sessionId);
         if (session) {
@@ -104,13 +115,10 @@ export function createChatRouter(): Router {
               agent.messages.push(msg);
             }
           }
-          isNewSession = session.messageCount === 0;
           Logger.log(
             'CHAT',
             `Loaded ${session.messages.length} messages from session ${sessionId}`
           );
-        } else {
-          Logger.log('CHAT', `Session ${sessionId} not found, ignoring`);
         }
       }
 
@@ -132,7 +140,7 @@ export function createChatRouter(): Router {
         `Loaded ${requestMessages.length} new messages from request`
       );
 
-      const modelName = agent.config.llm.model;
+      const modelName = agent.runConfig.model;
       const abortController = createGlobalAbortController();
       const signal = abortController.signal;
 

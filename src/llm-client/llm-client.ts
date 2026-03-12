@@ -4,11 +4,9 @@ import {
   type Message,
 } from '../schema/schema.js';
 import type { Tool } from '../tools/index.js';
-import { LLMClientBase } from './llm-client-base.js';
+import { LLMClientBase, type RetryConfig } from './llm-client-base.js';
 import { OpenAIClient } from './openai-client.js';
 import { AnthropicClient } from './anthropic-client.js';
-
-import type { RetryConfig } from '../config.js';
 
 export class LLMClient {
   public apiKey: string;
@@ -25,12 +23,12 @@ export class LLMClient {
     apiBase: string,
     provider: string,
     model: string,
-    retryConfig: RetryConfig
+    retryConfig?: RetryConfig
   ) {
     this.apiKey = apiKey;
     this.provider = provider;
     this.model = model;
-    this.retryConfig = retryConfig;
+    this.retryConfig = retryConfig ?? { enabled: true, maxRetries: 3 };
 
     let fullApiBase: string = '';
 
@@ -41,7 +39,7 @@ export class LLMClient {
           apiKey,
           fullApiBase,
           model,
-          retryConfig
+          this.retryConfig
         );
         break;
 
@@ -51,7 +49,7 @@ export class LLMClient {
           apiKey,
           fullApiBase,
           model,
-          retryConfig
+          this.retryConfig
         );
         break;
 

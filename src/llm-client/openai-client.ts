@@ -1,8 +1,7 @@
 import OpenAI from 'openai';
 import type { Message, LLMStreamChunk, ToolCall } from '../schema/index.js';
 import type { Tool } from '../tools/index.js';
-import { LLMClientBase } from './llm-client-base.js';
-import type { RetryConfig } from '../config.js';
+import { LLMClientBase, type RetryConfig } from './llm-client-base.js';
 import { Logger, sdkLoggerAdapter } from '../util/logger.js';
 
 /**

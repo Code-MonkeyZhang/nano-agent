@@ -1,6 +1,13 @@
 import type { Message, LLMStreamChunk } from '../schema/index.js';
 import type { Tool } from '../tools/index.js';
-import { Config, type RetryConfig } from '../config.js';
+import type { RetryConfig as ConfigRetryConfig } from '../config.js';
+
+export type RetryConfig = ConfigRetryConfig;
+
+const DEFAULT_RETRY_CONFIG: RetryConfig = {
+  enabled: true,
+  maxRetries: 3,
+};
 
 export abstract class LLMClientBase {
   public apiKey: string;
@@ -25,7 +32,7 @@ export abstract class LLMClientBase {
     this.apiKey = apiKey;
     this.apiBase = apiBase;
     this.model = model;
-    this.retryConfig = retryConfig ?? Config.createDefaultRetryConfig();
+    this.retryConfig = retryConfig ?? DEFAULT_RETRY_CONFIG;
   }
 
   /**

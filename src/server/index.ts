@@ -1,6 +1,11 @@
 import * as net from 'node:net';
 import * as fs from 'node:fs';
-import { httpServer, setupOpenAIRoutes } from './http-server.js';
+import * as path from 'node:path';
+import {
+  httpServer,
+  setupOpenAIRoutes,
+  setGlobalAgent,
+} from './http-server.js';
 import { initWebSocket, shutdownWebSocket } from './websocket-server.js';
 import {
   startTunnel,
@@ -11,12 +16,21 @@ import {
 import { Config } from '../config.js';
 import { Logger } from '../util/logger.js';
 import type { ServerState } from '../ui/types.js';
+import { initBuiltinToolPool } from '../builtin-tool-pool/store.js';
+import { initMcpPool } from '../mcp-pool/store.js';
+import { initSkillPool } from '../skill-pool/store.js';
+import { initCredentialPool } from '../credential/store.js';
+import {
+  initAgentConfigStore,
+  listAgentConfigs,
+} from '../agent-config/store.js';
+import {
+  createAgent,
+  setDefaultWorkspaceDir,
+  setGlobalRetryConfig,
+} from '../agent-factory/index.js';
+import { setMcpTimeoutConfig } from '../tools/index.js';
 
-/**
- * 检查指定端口是否可用
- * @param port - 要检查的端口号
- * @returns 如果端口可用返回 true，否则返回 false
- */
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const server = net.createServer();
@@ -32,11 +46,14 @@ function isPortAvailable(port: number): Promise<boolean> {
 
 type ServerStatusCallback = (state: ServerState) => void;
 
-/**
- * Server 管理器
- * 负责管理 HTTP Server、WebSocket Server 和 Cloudflare Tunnel 的生命周期
- * 使用单例模式，整个程序只有一个实例
- */
+const DATA_DIR = path.resolve(process.cwd(), 'data');
+
+function ensureDataDir(): void {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+}
+
 class ServerManager {
   private static instance: ServerManager | null = null;
   private config: Config;
@@ -76,10 +93,6 @@ class ServerManager {
     });
   }
 
-  /**
-   * 获取 ServerManager 单例实例
-   * @returns ServerManager 实例
-   */
   static getInstance(): ServerManager {
     if (!ServerManager.instance) {
       ServerManager.instance = new ServerManager();
@@ -87,19 +100,10 @@ class ServerManager {
     return ServerManager.instance;
   }
 
-  /**
-   * 注册状态变化回调函数
-   * 当 server 状态发生变化时（如启动、停止、tunnel 连接成功/失败）会调用此回调
-   * @param callback - 状态变化时的回调函数，接收新的 ServerState
-   */
   onStatusChange(callback: ServerStatusCallback): void {
     this.statusCallback = callback;
   }
 
-  /**
-   * 获取当前 server 状态
-   * @returns 包含状态、端口、URL 等信息的 ServerState 对象
-   */
   getState(): ServerState {
     if (!this.isServerRunning) {
       return { status: 'stopped' };
@@ -128,10 +132,6 @@ class ServerManager {
     return baseState;
   }
 
-  /**
-   * 获取本地访问 URL
-   * @returns 本地 URL，如 http://localhost:3847，如果未启动则返回 undefined
-   */
   private getLocalUrl(): string | undefined {
     if (this.currentPort) {
       return `http://localhost:${this.currentPort}`;
@@ -139,29 +139,12 @@ class ServerManager {
     return undefined;
   }
 
-  /**
-   * 通知状态变化
-   * 调用已注册的回调函数，通知 server 状态发生变化
-   * @param state - 新的 server 状态
-   */
   private notifyStatus(state: ServerState): void {
     if (this.statusCallback) {
       this.statusCallback(state);
     }
   }
 
-  /**
-   * 启动 HTTP Server
-   * 会依次：设置路由 → 初始化 WebSocket → 启动 HTTP 监听 → 启动 Tunnel（可选）
-   *
-   * 采用双重保险机制避免端口冲突：
-   * 1. 启动前扫描端口范围（3847-3866），找到第一个可用端口
-   * 2. 启动失败时自动尝试下一个端口（处理竞态条件）
-   *
-   * @param options - 启动选项
-   * @param options.enableTunnel - 是否启用 Cloudflare Tunnel 以获取公网访问地址
-   * @returns 启动结果，包含 success 和可能的 error 信息
-   */
   async start(options: {
     enableTunnel: boolean;
   }): Promise<{ success: boolean; error?: string }> {
@@ -174,7 +157,7 @@ class ServerManager {
 
     const workspaceDir = process.cwd();
 
-    Logger.initialize(undefined, 'server', this.config.logging.enableLogging);
+    Logger.initialize(undefined, 'server', this.config.enableLogging);
     Logger.log('SERVER', 'Starting server', {
       workspaceDir,
       enableTunnel: options.enableTunnel,
@@ -208,7 +191,38 @@ class ServerManager {
     Logger.log('SERVER', `Using port: ${port}`);
 
     try {
-      await setupOpenAIRoutes(this.config, workspaceDir);
+      ensureDataDir();
+      setDefaultWorkspaceDir(workspaceDir);
+
+      initCredentialPool(path.join(DATA_DIR, 'credentials.json'));
+      initAgentConfigStore(path.join(DATA_DIR, 'agents'));
+      initBuiltinToolPool(workspaceDir);
+      setGlobalRetryConfig(this.config.retry);
+
+      const skillsDir = this.config.tools.skillsDir;
+      const resolvedSkillsDir = path.resolve(skillsDir);
+      initSkillPool(resolvedSkillsDir);
+
+      const mcpConfigPath = Config.findConfigFile(
+        this.config.tools.mcpConfigPath
+      );
+      if (mcpConfigPath) {
+        setMcpTimeoutConfig(this.config.tools.mcp);
+        await initMcpPool(mcpConfigPath);
+      }
+
+      const agentConfigs = listAgentConfigs();
+      if (agentConfigs.length === 0) {
+        throw new Error('No agent configs found');
+      }
+
+      const defaultAgent = agentConfigs[0];
+      const agentCore = await createAgent(defaultAgent.id, workspaceDir);
+      setGlobalAgent(agentCore);
+
+      Logger.log('SERVER', `Agent '${defaultAgent.name}' created`);
+
+      await setupOpenAIRoutes();
       Logger.log('SERVER', 'OpenAI routes configured');
 
       initWebSocket();
@@ -275,10 +289,6 @@ class ServerManager {
     }
   }
 
-  /**
-   * 停止 HTTP Server
-   * 会依次：停止 Tunnel → 关闭 HTTP Server → 关闭 WebSocket
-   */
   async stop(): Promise<void> {
     if (!this.isServerRunning) {
       return;
@@ -304,28 +314,14 @@ class ServerManager {
     Logger.log('SERVER', 'Server stopped');
   }
 
-  /**
-   * 检查 server 是否正在运行
-   * @returns 如果 server 正在运行返回 true
-   */
   isRunning(): boolean {
     return this.isServerRunning;
   }
 
-  /**
-   * 获取当前 server 使用的端口
-   * @returns 端口号，如果 server 未运行则返回 null
-   */
   getPort(): number | null {
     return this.currentPort;
   }
 
-  /**
-   * 在指定端口范围内查找可用端口
-   * @param startPort - 起始端口号
-   * @returns 第一个可用的端口号
-   * @throws 如果没有可用端口
-   */
   private async findAvailablePort(startPort: number): Promise<number> {
     for (let port = startPort; port <= this.PORT_END; port++) {
       const available = await isPortAvailable(port);
@@ -338,10 +334,6 @@ class ServerManager {
     );
   }
 
-  /**
-   * 清理服务器错误状态
-   * 在启动失败时调用，确保状态一致性
-   */
   private cleanupOnError(): void {
     shutdownWebSocket();
 
@@ -357,11 +349,6 @@ class ServerManager {
     this.tunnelFailed = false;
   }
 
-  /**
-   * 在指定端口上启动 HTTP 服务器监听
-   * @param port - 监听端口
-   * @returns Promise，成功时 resolve，失败时 reject
-   */
   private async listenOnPort(port: number): Promise<void> {
     return new Promise((resolve, reject) => {
       httpServer.listen(port, '0.0.0.0', () => {
@@ -376,10 +363,6 @@ class ServerManager {
   }
 }
 
-/**
- * 获取 ServerManager 单例实例
- * @returns ServerManager 实例
- */
 export function getServerManager(): ServerManager {
   return ServerManager.getInstance();
 }

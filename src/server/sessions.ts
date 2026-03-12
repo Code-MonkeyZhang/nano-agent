@@ -27,8 +27,8 @@ export function initGlobalSessionManager(): void {
 /**
  * Creates the session router
  * Provides REST API for session CRUD:
- * - GET /api/sessions - List all sessions
- * - POST /api/sessions - Create a new session
+ * - GET /api/sessions - List all sessions (optionally filtered by agentId)
+ * - POST /api/sessions - Create a new session (requires agentId)
  * - GET /api/sessions/:id - Get a specific session
  * - DELETE /api/sessions/:id - Delete a session
  *
@@ -40,12 +40,13 @@ export function createSessionRouter(): Router {
   const router = Router();
 
   /**
-   * List all sessions.
+   * List all sessions or sessions for a specific agent.
    * Returns session metadata sorted by most recently updated.
    *
    * @route GET /api/sessions
+   * @query agentId - Optional agent ID to filter sessions
    */
-  router.get('/', (_req: Request, res: Response) => {
+  router.get('/', (req: Request, res: Response) => {
     try {
       const manager = getGlobalSessionManager();
       if (!manager) {
@@ -53,7 +54,10 @@ export function createSessionRouter(): Router {
         return;
       }
 
-      const sessions = manager.listSessions();
+      const agentId = req.query['agentId'] as string | undefined;
+      const sessions = agentId
+        ? manager.listSessionsByAgent(agentId)
+        : manager.listSessions();
       res.json({ sessions });
     } catch (error) {
       Logger.log('SESSION', 'Error listing sessions', error);
@@ -64,10 +68,10 @@ export function createSessionRouter(): Router {
   });
 
   /**
-   * Create a new session.
+   * Create a new session bound to a specific agent.
    *
    * @route POST /api/sessions
-   * @body { title?: string } - Optional session title
+   * @body { agentId: string, title?: string } - Agent ID is required
    */
   router.post('/', (req: Request, res: Response) => {
     try {
@@ -77,10 +81,18 @@ export function createSessionRouter(): Router {
         return;
       }
 
-      const { title } = req.body;
-      const session = manager.createSession(title);
+      const { agentId, title } = req.body;
+      if (!agentId) {
+        res.status(400).json({ error: 'agentId is required' });
+        return;
+      }
 
-      Logger.log('SESSION', `Created session: ${session.id}`);
+      const session = manager.createSession(agentId, { title });
+
+      Logger.log(
+        'SESSION',
+        `Created session: ${session.id} for agent: ${agentId}`
+      );
       res.status(201).json({ session });
     } catch (error) {
       Logger.log('SESSION', 'Error creating session', error);
