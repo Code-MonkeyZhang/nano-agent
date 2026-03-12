@@ -77,16 +77,6 @@ export function BootUpContainer({
       const defaultAgent = agentConfigs[0];
       const agentCore = await createAgent(defaultAgent.id, workspaceDir);
 
-      const isConnected = await agentCore.checkConnection();
-      if (!isConnected) {
-        setLoading(false);
-        setError(
-          'API connection failed. Please check your API key and network.'
-        );
-        setTimeout(() => exit(), 2000);
-        return;
-      }
-
       setLoading(false);
       setAgent(agentCore);
     } catch (err) {

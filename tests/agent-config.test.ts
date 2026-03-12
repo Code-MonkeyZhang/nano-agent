@@ -39,8 +39,8 @@ describe('AgentConfigStore', () => {
         id: 'custom-agent',
         name: 'Custom Agent',
         systemPrompt: 'You are a custom agent.',
-        credentialId: 'test-credential',
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 10,
         mcpIds: [],
         skillIds: [],
@@ -64,8 +64,8 @@ describe('AgentConfigStore', () => {
         id: 'existing',
         name: 'Existing',
         systemPrompt: 'Test',
-        credentialId: null,
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 5,
         mcpIds: [],
         skillIds: [],
@@ -89,8 +89,8 @@ describe('AgentConfigStore', () => {
       const agent = createAgentConfig({
         name: 'Test Agent',
         systemPrompt: 'You are a test agent.',
-        credentialId: 'test-cred',
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 10,
         mcpIds: ['ticktick'],
         skillIds: [],
@@ -98,7 +98,7 @@ describe('AgentConfigStore', () => {
 
       expect(agent.id).toBeDefined();
       expect(agent.name).toBe('Test Agent');
-      expect(agent.credentialId).toBe('test-cred');
+      expect(agent.provider).toBe('openai');
       expect(agent.mcpIds).toEqual(['ticktick']);
     });
 
@@ -107,8 +107,8 @@ describe('AgentConfigStore', () => {
         id: 'my-custom-id',
         name: 'Custom ID Agent',
         systemPrompt: 'Test',
-        credentialId: null,
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 5,
         mcpIds: [],
         skillIds: [],
@@ -122,8 +122,8 @@ describe('AgentConfigStore', () => {
         id: 'duplicate-id',
         name: 'First',
         systemPrompt: 'Test',
-        credentialId: null,
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 5,
         mcpIds: [],
         skillIds: [],
@@ -134,8 +134,8 @@ describe('AgentConfigStore', () => {
           id: 'duplicate-id',
           name: 'Second',
           systemPrompt: 'Test',
-          credentialId: null,
-          model: 'gpt-4o',
+          provider: 'openai',
+          modelId: 'gpt-4o',
           maxSteps: 5,
           mcpIds: [],
           skillIds: [],
@@ -148,8 +148,8 @@ describe('AgentConfigStore', () => {
         id: 'persisted-agent',
         name: 'Persisted',
         systemPrompt: 'Test',
-        credentialId: 'cred-123',
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 10,
         mcpIds: [],
         skillIds: [],
@@ -160,7 +160,7 @@ describe('AgentConfigStore', () => {
 
       const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
       expect(content.name).toBe('Persisted');
-      expect(content.credentialId).toBe('cred-123');
+      expect(content.provider).toBe('openai');
     });
   });
 
@@ -170,8 +170,8 @@ describe('AgentConfigStore', () => {
         id: 'get-test',
         name: 'Get Test',
         systemPrompt: 'Test prompt',
-        credentialId: 'cred-1',
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 10,
         mcpIds: [],
         skillIds: [],
@@ -196,8 +196,8 @@ describe('AgentConfigStore', () => {
         id: 'agent-1',
         name: 'Agent 1',
         systemPrompt: 'Test',
-        credentialId: null,
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 5,
         mcpIds: [],
         skillIds: [],
@@ -207,8 +207,8 @@ describe('AgentConfigStore', () => {
         id: 'agent-2',
         name: 'Agent 2',
         systemPrompt: 'Test',
-        credentialId: null,
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 5,
         mcpIds: [],
         skillIds: [],
@@ -226,8 +226,8 @@ describe('AgentConfigStore', () => {
         id: 'update-test',
         name: 'Original',
         systemPrompt: 'Original prompt',
-        credentialId: null,
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 5,
         mcpIds: [],
         skillIds: [],
@@ -235,14 +235,14 @@ describe('AgentConfigStore', () => {
 
       const updated = updateAgentConfig('update-test', {
         name: 'Updated',
-        credentialId: 'new-cred',
+        provider: 'anthropic',
         maxSteps: 20,
       });
 
       expect(updated.name).toBe('Updated');
-      expect(updated.credentialId).toBe('new-cred');
+      expect(updated.provider).toBe('anthropic');
       expect(updated.maxSteps).toBe(20);
-      expect(updated.model).toBe('gpt-4o');
+      expect(updated.modelId).toBe('gpt-4o');
     });
 
     it('should throw error for non-existent agent', () => {
@@ -256,8 +256,8 @@ describe('AgentConfigStore', () => {
         id: 'persist-update',
         name: 'Original',
         systemPrompt: 'Test',
-        credentialId: null,
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 5,
         mcpIds: [],
         skillIds: [],
@@ -278,8 +278,8 @@ describe('AgentConfigStore', () => {
         id: 'delete-test',
         name: 'To Delete',
         systemPrompt: 'Test',
-        credentialId: null,
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 5,
         mcpIds: [],
         skillIds: [],
@@ -302,8 +302,8 @@ describe('AgentConfigStore', () => {
         id: 'file-delete',
         name: 'File Delete',
         systemPrompt: 'Test',
-        credentialId: null,
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 5,
         mcpIds: [],
         skillIds: [],
@@ -324,8 +324,8 @@ describe('AgentConfigStore', () => {
         id: 'has-test',
         name: 'Has Test',
         systemPrompt: 'Test',
-        credentialId: null,
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 5,
         mcpIds: [],
         skillIds: [],
@@ -345,8 +345,8 @@ describe('AgentConfigStore', () => {
         id: 'reload-test',
         name: 'Original',
         systemPrompt: 'Test',
-        credentialId: null,
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 5,
         mcpIds: [],
         skillIds: [],
@@ -357,8 +357,8 @@ describe('AgentConfigStore', () => {
         id: 'reload-test',
         name: 'Modified Externally',
         systemPrompt: 'Test',
-        credentialId: 'new-cred',
-        model: 'gpt-4o',
+        provider: 'anthropic',
+        modelId: 'gpt-4o',
         maxSteps: 10,
         mcpIds: [],
         skillIds: [],
@@ -369,7 +369,7 @@ describe('AgentConfigStore', () => {
       const reloaded = reloadAgentConfig('reload-test');
 
       expect(reloaded?.name).toBe('Modified Externally');
-      expect(reloaded?.credentialId).toBe('new-cred');
+      expect(reloaded?.provider).toBe('anthropic');
     });
 
     it('should return undefined and remove from cache if file deleted', () => {
@@ -377,8 +377,8 @@ describe('AgentConfigStore', () => {
         id: 'reload-delete',
         name: 'To Delete',
         systemPrompt: 'Test',
-        credentialId: null,
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'gpt-4o',
         maxSteps: 5,
         mcpIds: [],
         skillIds: [],
@@ -401,7 +401,7 @@ describe('AgentConfigStore', () => {
       expect(adam).toBeDefined();
       expect(adam?.name).toBe('Adam');
       expect(adam?.mcpIds).toEqual(['ticktick', 'notion']);
-      expect(adam?.model).toBe('gpt-4o');
+      expect(adam?.modelId).toBe('gpt-4o');
     });
 
     it('should create Eve with correct configuration', () => {
@@ -410,7 +410,7 @@ describe('AgentConfigStore', () => {
       expect(eve).toBeDefined();
       expect(eve?.name).toBe('Eve');
       expect(eve?.mcpIds).toEqual(['netease-openapi-mcp']);
-      expect(eve?.model).toBe('gpt-4o');
+      expect(eve?.modelId).toBe('gpt-4o');
     });
 
     it('should allow deleting default agents', () => {

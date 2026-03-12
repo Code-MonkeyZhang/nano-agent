@@ -140,7 +140,7 @@ export function createChatRouter(): Router {
         `Loaded ${requestMessages.length} new messages from request`
       );
 
-      const modelName = agent.runConfig.model;
+      const modelName = agent.runConfig.modelId;
       const abortController = createGlobalAbortController();
       const signal = abortController.signal;
 

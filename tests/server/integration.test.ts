@@ -13,7 +13,7 @@ import { initMcpPool } from '../../src/mcp-pool/store.js';
 import { initSkillPool } from '../../src/skill-pool/store.js';
 import {
   initCredentialPool,
-  createCredential,
+  setCredential,
 } from '../../src/credential/store.js';
 import {
   initAgentConfigStore,
@@ -57,15 +57,13 @@ function ensureTestDir(dir: string): void {
  *
  * Uses environment variables for API credentials:
  * - TEST_API_KEY: Required - API key for the LLM provider
- * - TEST_API_BASE: Optional - API base URL (default: DeepSeek)
  * - TEST_PROVIDER: Optional - Provider type (default: openai)
- * - TEST_MODEL: Optional - Model name (default: deepseek-chat)
+ * - TEST_MODEL_ID: Optional - Model ID (default: gpt-4o)
  */
 function getTestConfig(): {
   apiKey: string;
-  apiBase: string;
   provider: 'openai' | 'anthropic';
-  model: string;
+  modelId: string;
 } | null {
   const apiKey = process.env['TEST_API_KEY'];
   if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
@@ -74,9 +72,8 @@ function getTestConfig(): {
 
   return {
     apiKey,
-    apiBase: process.env['TEST_API_BASE'] ?? 'https://api.deepseek.com/v1',
     provider: (process.env['TEST_PROVIDER'] as 'openai' | 'anthropic') ?? 'openai',
-    model: process.env['TEST_MODEL'] ?? 'deepseek-chat',
+    modelId: process.env['TEST_MODEL_ID'] ?? 'gpt-4o',
   };
 }
 
@@ -111,10 +108,7 @@ maybeDescribe('Integration Tests', () => {
     initCredentialPool(credentialsPath);
     initAgentConfigStore(agentsPath);
 
-    const testCredential = createCredential({
-      name: 'Test Credential',
-      provider: testConfig.provider,
-      apiBase: testConfig.apiBase,
+    setCredential(testConfig.provider, {
       apiKey: testConfig.apiKey,
     });
 
@@ -125,8 +119,8 @@ maybeDescribe('Integration Tests', () => {
 
     const defaultAgent = agentConfigs[0];
     updateAgentConfig(defaultAgent.id, {
-      credentialId: testCredential.id,
-      model: testConfig.model,
+      provider: testConfig.provider,
+      modelId: testConfig.modelId,
     });
 
     initBuiltinToolPool(testWorkspaceDir);

@@ -11,9 +11,8 @@ export function AboutMessage({ agent }: AboutMessageProps) {
 
   const info = [
     { label: 'Version', value: '1.0.0' },
-    { label: 'Model', value: config.model },
+    { label: 'Model', value: config.model.name ?? config.modelId },
     { label: 'Provider', value: config.provider },
-    { label: 'API Base', value: config.apiBase },
     { label: 'Max Steps', value: String(config.maxSteps) },
     { label: 'Workspace', value: agent.workspaceDir },
     { label: 'Tools', value: `${agent.tools.size} loaded` },

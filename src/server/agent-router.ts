@@ -75,15 +75,21 @@ export function createAgentRouter(): Router {
    * POST /api/agents
    * Create a new agent configuration.
    *
-   * @body { name, systemPrompt, credentialId, model, maxSteps, mcpIds, skillIds, id? }
+   * @body { name, systemPrompt, provider, modelId, maxSteps, mcpIds, skillIds, id? }
    */
   router.post('/', (req: Request, res: Response) => {
     try {
       const input = req.body as CreateAgentConfigInput;
 
-      if (!input.name || !input.systemPrompt || !input.model) {
+      if (
+        !input.name ||
+        !input.systemPrompt ||
+        !input.provider ||
+        !input.modelId
+      ) {
         res.status(400).json({
-          error: 'Missing required fields: name, systemPrompt, model',
+          error:
+            'Missing required fields: name, systemPrompt, provider, modelId',
         });
         return;
       }
@@ -106,7 +112,7 @@ export function createAgentRouter(): Router {
    * PUT /api/agents/:id
    * Update an existing agent configuration.
    *
-   * @body { name?, systemPrompt?, credentialId?, model?, maxSteps?, mcpIds?, skillIds? }
+   * @body { name?, systemPrompt?, provider?, modelId?, maxSteps?, mcpIds?, skillIds? }
    */
   router.put('/:id', (req: Request, res: Response) => {
     try {

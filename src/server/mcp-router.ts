@@ -112,7 +112,7 @@ export function createMcpRouter(): Router {
    * Get the list of tools available from an MCP server.
    * Note: Server must be connected first to have tools loaded.
    */
-  router.get('/:name/tools', (req: Request, res: Response) => {
+  router.get('/:name/tools', async (req: Request, res: Response) => {
     try {
       const name = Array.isArray(req.params['name'])
         ? req.params['name'][0]
@@ -128,7 +128,7 @@ export function createMcpRouter(): Router {
         return;
       }
 
-      const tools = listMcpTools(name);
+      const tools = await listMcpTools(name);
       res.json({ serverName: name, tools });
     } catch (error) {
       Logger.log('MCP', 'Error listing MCP tools', error);

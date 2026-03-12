@@ -94,163 +94,100 @@ describe('Phase 8: HTTP API Tests', () => {
   });
 
   describe('8.1 Credential Management API', () => {
-    describe('POST /api/credentials', () => {
+    describe('PUT /api/credentials/:provider', () => {
       it('should create a credential', async () => {
-        const response = await fetch(`${BASE_URL}/api/credentials`, {
-          method: 'POST',
+        const response = await fetch(`${BASE_URL}/api/credentials/openai`, {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: 'Test OpenAI',
-            provider: 'openai',
-            apiBase: 'https://api.openai.com/v1',
             apiKey: 'sk-test-1234567890',
           }),
         });
 
-        expect(response.status).toBe(201);
-        const data = (await response.json()) as { credential: { id: string; name: string } };
-        expect(data.credential.id).toBeDefined();
-        expect(data.credential.name).toBe('Test OpenAI');
+        expect(response.status).toBe(200);
+        const data = (await response.json()) as { provider: string; apiKey: string };
+        expect(data.provider).toBe('openai');
+        expect(data.apiKey).toContain('***');
       });
 
       it('should return masked API key in response', async () => {
-        const response = await fetch(`${BASE_URL}/api/credentials`, {
-          method: 'POST',
+        const response = await fetch(`${BASE_URL}/api/credentials/anthropic`, {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: 'Test Anthropic',
-            provider: 'anthropic',
-            apiBase: 'https://api.anthropic.com',
             apiKey: 'sk-ant-1234567890abcdefghijklmnop',
           }),
         });
 
         const data = (await response.json()) as {
-          credential: { apiKey: string };
+          provider: string;
+          apiKey: string;
         };
-        expect(data.credential.apiKey).not.toBe('sk-ant-1234567890abcdefghijklmnop');
-        expect(data.credential.apiKey).toContain('***');
+        expect(data.apiKey).not.toBe('sk-ant-1234567890abcdefghijklmnop');
+        expect(data.apiKey).toContain('***');
       });
     });
 
-    describe('GET /api/credentials', () => {
-      it('should list all credentials with masked API keys', async () => {
-        const response = await fetch(`${BASE_URL}/api/credentials`);
+    describe('GET /api/credentials/', () => {
+      it('should list all providers with credential status', async () => {
+        const response = await fetch(`${BASE_URL}/api/credentials/`);
         expect(response.status).toBe(200);
 
         const data = (await response.json()) as {
-          credentials: Array<{ apiKey: string }>;
+          providers: Array<{ provider: string; hasCredential: boolean }>;
         };
-        expect(Array.isArray(data.credentials)).toBe(true);
-
-        for (const cred of data.credentials) {
-          expect(cred.apiKey).toContain('***');
-        }
+        expect(Array.isArray(data.providers)).toBe(true);
       });
     });
 
-    describe('GET /api/credentials/:id', () => {
+    describe('GET /api/credentials/:provider', () => {
       it('should return a single credential with masked API key', async () => {
-        const createResponse = await fetch(`${BASE_URL}/api/credentials`, {
-          method: 'POST',
+        await fetch(`${BASE_URL}/api/credentials/openai`, {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: 'Get Test',
-            provider: 'openai',
-            apiBase: 'https://api.test.com',
             apiKey: 'secret-key-12345',
           }),
         });
 
-        const createData = (await createResponse.json()) as {
-          credential: { id: string };
-        };
-        const id = createData.credential.id;
-
-        const response = await fetch(`${BASE_URL}/api/credentials/${id}`);
+        const response = await fetch(`${BASE_URL}/api/credentials/openai`);
         expect(response.status).toBe(200);
 
         const data = (await response.json()) as {
-          credential: { name: string; apiKey: string };
+          provider: string;
+          apiKey: string;
         };
-        expect(data.credential.name).toBe('Get Test');
-        expect(data.credential.apiKey).toContain('***');
+        expect(data.provider).toBe('openai');
+        expect(data.apiKey).toContain('***');
       });
 
       it('should return 404 for non-existent credential', async () => {
-        const response = await fetch(`${BASE_URL}/api/credentials/non-existent-id`);
+        const response = await fetch(`${BASE_URL}/api/credentials/nonexistent-provider`);
         expect(response.status).toBe(404);
       });
     });
 
-    describe('PUT /api/credentials/:id', () => {
-      it('should update a credential', async () => {
-        const createResponse = await fetch(`${BASE_URL}/api/credentials`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: 'Original',
-            provider: 'openai',
-            apiBase: 'https://original.com',
-            apiKey: 'original-key',
-          }),
-        });
-
-        const createData = (await createResponse.json()) as {
-          credential: { id: string };
-        };
-        const id = createData.credential.id;
-
-        const response = await fetch(`${BASE_URL}/api/credentials/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: 'Updated' }),
-        });
-
-        expect(response.status).toBe(200);
-        const data = (await response.json()) as { credential: { name: string } };
-        expect(data.credential.name).toBe('Updated');
-      });
-
-      it('should return 404 for non-existent credential', async () => {
-        const response = await fetch(`${BASE_URL}/api/credentials/non-existent`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: 'Test' }),
-        });
-        expect(response.status).toBe(404);
-      });
-    });
-
-    describe('DELETE /api/credentials/:id', () => {
+    describe('DELETE /api/credentials/:provider', () => {
       it('should delete a credential', async () => {
-        const createResponse = await fetch(`${BASE_URL}/api/credentials`, {
-          method: 'POST',
+        await fetch(`${BASE_URL}/api/credentials/groq`, {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: 'To Delete',
-            provider: 'openai',
-            apiBase: 'https://test.com',
-            apiKey: 'key',
+            apiKey: 'key-to-delete',
           }),
         });
 
-        const createData = (await createResponse.json()) as {
-          credential: { id: string };
-        };
-        const id = createData.credential.id;
-
-        const response = await fetch(`${BASE_URL}/api/credentials/${id}`, {
+        const response = await fetch(`${BASE_URL}/api/credentials/groq`, {
           method: 'DELETE',
         });
         expect(response.status).toBe(200);
 
-        const getResponse = await fetch(`${BASE_URL}/api/credentials/${id}`);
+        const getResponse = await fetch(`${BASE_URL}/api/credentials/groq`);
         expect(getResponse.status).toBe(404);
       });
 
       it('should return 404 for non-existent credential', async () => {
-        const response = await fetch(`${BASE_URL}/api/credentials/non-existent`, {
+        const response = await fetch(`${BASE_URL}/api/credentials/nonexistent-provider`, {
           method: 'DELETE',
         });
         expect(response.status).toBe(404);
@@ -259,21 +196,14 @@ describe('Phase 8: HTTP API Tests', () => {
   });
 
   describe('8.2 Agent Configuration Management API', () => {
-    let testCredentialId: string;
-
     beforeEach(async () => {
-      const response = await fetch(`${BASE_URL}/api/credentials`, {
-        method: 'POST',
+      await fetch(`${BASE_URL}/api/credentials/openai`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: 'Test Cred for Agent',
-          provider: 'openai',
-          apiBase: 'https://api.test.com',
           apiKey: 'test-key',
         }),
       });
-      const data = (await response.json()) as { credential: { id: string } };
-      testCredentialId = data.credential.id;
     });
 
     describe('POST /api/agents', () => {
@@ -285,8 +215,8 @@ describe('Phase 8: HTTP API Tests', () => {
             id: 'test-agent-1',
             name: 'Test Agent',
             systemPrompt: 'You are a test agent.',
-            credentialId: testCredentialId,
-            model: 'gpt-4o',
+            provider: 'openai',
+            modelId: 'gpt-4o',
             maxSteps: 10,
             mcpIds: [],
             skillIds: [],
@@ -309,8 +239,8 @@ describe('Phase 8: HTTP API Tests', () => {
             id: 'test-agent-with-tools',
             name: 'Agent with Tools',
             systemPrompt: 'Test',
-            credentialId: testCredentialId,
-            model: 'gpt-4o',
+            provider: 'openai',
+            modelId: 'gpt-4o',
             maxSteps: 5,
             mcpIds: ['ticktick', 'notion'],
             skillIds: ['skill:code-review'],
@@ -333,8 +263,8 @@ describe('Phase 8: HTTP API Tests', () => {
             id: 'duplicate-agent',
             name: 'First',
             systemPrompt: 'Test',
-            credentialId: testCredentialId,
-            model: 'gpt-4o',
+            provider: 'openai',
+            modelId: 'gpt-4o',
             maxSteps: 5,
             mcpIds: [],
             skillIds: [],
@@ -348,8 +278,8 @@ describe('Phase 8: HTTP API Tests', () => {
             id: 'duplicate-agent',
             name: 'Second',
             systemPrompt: 'Test',
-            credentialId: testCredentialId,
-            model: 'gpt-4o',
+            provider: 'openai',
+            modelId: 'gpt-4o',
             maxSteps: 5,
             mcpIds: [],
             skillIds: [],
@@ -379,8 +309,8 @@ describe('Phase 8: HTTP API Tests', () => {
             id: 'get-test-agent',
             name: 'Get Test Agent',
             systemPrompt: 'Test prompt',
-            credentialId: testCredentialId,
-            model: 'gpt-4o',
+            provider: 'openai',
+            modelId: 'gpt-4o',
             maxSteps: 10,
             mcpIds: [],
             skillIds: [],
@@ -393,10 +323,10 @@ describe('Phase 8: HTTP API Tests', () => {
         expect(response.status).toBe(200);
 
         const data = (await response.json()) as {
-          agent: { name: string; model: string };
+          agent: { name: string; modelId: string };
         };
         expect(data.agent.name).toBe('Get Test Agent');
-        expect(data.agent.model).toBe('gpt-4o');
+        expect(data.agent.modelId).toBe('gpt-4o');
       });
 
       it('should return 404 for non-existent agent', async () => {
@@ -414,8 +344,8 @@ describe('Phase 8: HTTP API Tests', () => {
             id: 'update-test-agent',
             name: 'Original',
             systemPrompt: 'Original prompt',
-            credentialId: testCredentialId,
-            model: 'gpt-4o',
+            provider: 'openai',
+            modelId: 'gpt-4o',
             maxSteps: 5,
             mcpIds: [],
             skillIds: [],
@@ -458,8 +388,8 @@ describe('Phase 8: HTTP API Tests', () => {
             id: 'delete-test-agent',
             name: 'To Delete',
             systemPrompt: 'Test',
-            credentialId: testCredentialId,
-            model: 'gpt-4o',
+            provider: 'openai',
+            modelId: 'gpt-4o',
             maxSteps: 5,
             mcpIds: [],
             skillIds: [],
@@ -584,18 +514,13 @@ describe('Phase 8: HTTP API Tests', () => {
 
   describe('8.6 Relationship and Boundary Tests', () => {
     it('should create agent with reference to existing credential', async () => {
-      const credResponse = await fetch(`${BASE_URL}/api/credentials`, {
-        method: 'POST',
+      await fetch(`${BASE_URL}/api/credentials/openai`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: 'Ref Test Cred',
-          provider: 'openai',
-          apiBase: 'https://api.test.com',
           apiKey: 'test-key',
         }),
       });
-      const credData = (await credResponse.json()) as { credential: { id: string } };
-      const credentialId = credData.credential.id;
 
       const agentResponse = await fetch(`${BASE_URL}/api/agents`, {
         method: 'POST',
@@ -604,8 +529,8 @@ describe('Phase 8: HTTP API Tests', () => {
           id: 'ref-test-agent',
           name: 'Ref Test Agent',
           systemPrompt: 'Test',
-          credentialId,
-          model: 'gpt-4o',
+          provider: 'openai',
+          modelId: 'gpt-4o',
           maxSteps: 5,
           mcpIds: [],
           skillIds: [],
@@ -614,21 +539,21 @@ describe('Phase 8: HTTP API Tests', () => {
 
       expect(agentResponse.status).toBe(201);
       const agentData = (await agentResponse.json()) as {
-        agent: { credentialId: string };
+        agent: { provider: string };
       };
-      expect(agentData.agent.credentialId).toBe(credentialId);
+      expect(agentData.agent.provider).toBe('openai');
     });
 
-    it('should allow creating agent with null credentialId', async () => {
+    it('should allow creating agent with provider', async () => {
       const response = await fetch(`${BASE_URL}/api/agents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: 'null-cred-agent',
-          name: 'No Credential Agent',
+          id: 'provider-agent',
+          name: 'Provider Agent',
           systemPrompt: 'Test',
-          credentialId: null,
-          model: 'gpt-4o',
+          provider: 'openai',
+          modelId: 'gpt-4o',
           maxSteps: 5,
           mcpIds: [],
           skillIds: [],
@@ -636,8 +561,8 @@ describe('Phase 8: HTTP API Tests', () => {
       });
 
       expect(response.status).toBe(201);
-      const data = (await response.json()) as { agent: { credentialId: null } };
-      expect(data.agent.credentialId).toBeNull();
+      const data = (await response.json()) as { agent: { provider: string } };
+      expect(data.agent.provider).toBe('openai');
     });
 
     it('should return correct error structure for 404', async () => {

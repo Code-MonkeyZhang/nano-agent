@@ -10,12 +10,10 @@ import {
   reloadAgent,
   setDefaultWorkspaceDir,
 } from '../src/agent-factory/index.js';
-import { initCredentialPool } from '../src/credential/store.js';
+import { initCredentialPool, setCredential } from '../src/credential/store.js';
 import { initAgentConfigStore } from '../src/agent-config/store.js';
 import { initBuiltinToolPool } from '../src/builtin-tool-pool/store.js';
 import { initSkillPool } from '../src/skill-pool/store.js';
-import { createCredential } from '../src/credential/store.js';
-import type { Credential } from '../src/credential/types.js';
 
 const TEST_DATA_DIR = path.resolve(process.cwd(), 'tests/temp/agent-factory-test');
 const TEST_WORKSPACE = path.resolve(process.cwd(), 'tests/temp/workspace');
@@ -33,8 +31,6 @@ function cleanupTestDir(dir: string): void {
 }
 
 describe('AgentFactory', () => {
-  let testCredential: Credential;
-
   beforeEach(() => {
     cleanupTestDir(TEST_DATA_DIR);
     cleanupTestDir(TEST_WORKSPACE);
@@ -46,10 +42,7 @@ describe('AgentFactory', () => {
     setDefaultWorkspaceDir(TEST_WORKSPACE);
 
     initCredentialPool(path.join(TEST_DATA_DIR, 'credentials.json'));
-    testCredential = createCredential({
-      name: 'Test Credential',
-      provider: 'openai',
-      apiBase: 'https://api.test.com/v1',
+    setCredential('openai', {
       apiKey: 'test-api-key-12345',
     });
 
@@ -57,8 +50,8 @@ describe('AgentFactory', () => {
       id: 'test-agent',
       name: 'Test Agent',
       systemPrompt: 'You are a test agent.',
-      credentialId: testCredential.id,
-      model: 'gpt-4o',
+      provider: 'openai',
+      modelId: 'gpt-4o',
       maxSteps: 5,
       mcpIds: [],
       skillIds: [],
@@ -84,9 +77,9 @@ describe('AgentFactory', () => {
       const agent = await createAgent('test-agent');
 
       expect(agent).toBeDefined();
-      expect(agent.runConfig.model).toBe('gpt-4o');
+      expect(agent.runConfig.modelId).toBe('gpt-4o');
       expect(agent.runConfig.provider).toBe('openai');
-      expect(agent.runConfig.apiBase).toBe('https://api.test.com/v1');
+      expect(agent.runConfig.model.baseUrl).toBe('https://api.openai.com/v1');
       expect(agent.runConfig.baseSystemPrompt).toContain(
         'You are a test agent.'
       );
@@ -105,8 +98,8 @@ describe('AgentFactory', () => {
         id: 'no-credential-agent',
         name: 'No Credential Agent',
         systemPrompt: 'Test',
-        credentialId: null,
-        model: 'gpt-4o',
+        provider: 'anthropic',
+        modelId: 'claude-3-5-sonnet-20241022',
         maxSteps: 5,
         mcpIds: [],
         skillIds: [],
@@ -118,29 +111,29 @@ describe('AgentFactory', () => {
       initAgentConfigStore(path.join(TEST_DATA_DIR, 'agents'));
 
       await expect(createAgent('no-credential-agent')).rejects.toThrow(
-        'has no credential configured'
+        "No credential found for provider 'anthropic'"
       );
     });
 
-    it('should throw error if credential not found', async () => {
-      const invalidCredentialConfig = {
-        id: 'invalid-credential-agent',
-        name: 'Invalid Credential Agent',
+    it('should throw error if model not found', async () => {
+      const invalidModelConfig = {
+        id: 'invalid-model-agent',
+        name: 'Invalid Model Agent',
         systemPrompt: 'Test',
-        credentialId: 'non-existent-credential',
-        model: 'gpt-4o',
+        provider: 'openai',
+        modelId: 'non-existent-model',
         maxSteps: 5,
         mcpIds: [],
         skillIds: [],
       };
       fs.writeFileSync(
-        path.join(TEST_DATA_DIR, 'agents', 'invalid-credential-agent.json'),
-        JSON.stringify(invalidCredentialConfig, null, 2)
+        path.join(TEST_DATA_DIR, 'agents', 'invalid-model-agent.json'),
+        JSON.stringify(invalidModelConfig, null, 2)
       );
       initAgentConfigStore(path.join(TEST_DATA_DIR, 'agents'));
 
-      await expect(createAgent('invalid-credential-agent')).rejects.toThrow(
-        'Credential not found'
+      await expect(createAgent('invalid-model-agent')).rejects.toThrow(
+        "Model not found: openai/non-existent-model"
       );
     });
 
@@ -171,7 +164,7 @@ describe('AgentFactory', () => {
       const cached = getCachedAgent('test-agent');
 
       expect(cached).toBeDefined();
-      expect(cached?.runConfig.model).toBe('gpt-4o');
+      expect(cached?.runConfig.modelId).toBe('gpt-4o');
     });
 
     it('should return undefined for non-cached agent', () => {
@@ -204,7 +197,7 @@ describe('AgentFactory', () => {
       const agent = await reloadAgent('test-agent');
 
       expect(agent).toBeDefined();
-      expect(agent.runConfig.model).toBe('gpt-4o');
+      expect(agent.runConfig.modelId).toBe('gpt-4o');
       expect(isAgentCached('test-agent')).toBe(true);
     });
   });

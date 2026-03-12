@@ -4,13 +4,13 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import {
   initCredentialPool,
-  createCredential,
-  updateCredential,
+  setCredential,
   deleteCredential,
   getCredential,
-  listCredentials,
+  listProvidersWithCredential,
   hasCredential,
 } from '../src/credential/index.js';
+import type { Provider } from '../src/credential/index.js';
 
 describe('CredentialPool', () => {
   let tempDir: string;
@@ -27,202 +27,115 @@ describe('CredentialPool', () => {
   });
 
   describe('initCredentialPool', () => {
-    it('should initialize with empty pool when file does not exist', () => {
-      expect(listCredentials()).toEqual([]);
+    it('should initialize with all providers listed when file does not exist', () => {
+      const providers = listProvidersWithCredential();
+      expect(providers.length).toBeGreaterThan(0);
+      expect(providers.every((p) => p.hasCredential === false)).toBe(true);
     });
 
     it('should load existing credentials from file', () => {
       const existingData = {
-        'test-id-1': {
-          id: 'test-id-1',
-          name: 'Test Credential',
-          provider: 'anthropic',
-          apiBase: 'https://api.anthropic.com',
-          apiKey: 'sk-test-123',
-        },
+        anthropic: { apiKey: 'sk-test-123' },
+        openai: { apiKey: 'sk-openai-456' },
       };
       fs.writeFileSync(testFilePath, JSON.stringify(existingData));
 
       initCredentialPool(testFilePath);
-      const credentials = listCredentials();
+      const providers = listProvidersWithCredential();
 
-      expect(credentials.length).toBe(1);
-      expect(credentials[0]?.name).toBe('Test Credential');
+      expect(providers.length).toBeGreaterThan(0);
+      expect(providers.find((p) => p.provider === 'anthropic')?.hasCredential).toBe(
+        true
+      );
+      expect(providers.find((p) => p.provider === 'openai')?.hasCredential).toBe(
+        true
+      );
     });
   });
 
-  describe('createCredential', () => {
-    it('should create a credential with generated ID', () => {
-      const credential = createCredential({
-        name: 'MiniMax',
-        provider: 'anthropic',
-        apiBase: 'https://api.minimax.chat/v1',
-        apiKey: 'minimax-api-key-12345',
+  describe('setCredential', () => {
+    it('should set a credential for a provider', () => {
+      const credential = setCredential('anthropic' as Provider, {
+        apiKey: 'sk-ant-test-123',
       });
 
-      expect(credential.id).toBeDefined();
-      expect(credential.name).toBe('MiniMax');
-      expect(credential.provider).toBe('anthropic');
-      expect(credential.apiBase).toBe('https://api.minimax.chat/v1');
-      expect(credential.apiKey).toBe('minimax-api-key-12345');
+      expect(credential.apiKey).toBe('sk-ant-test-123');
     });
 
     it('should persist credential to file', () => {
-      createCredential({
-        name: 'Test',
-        provider: 'openai',
-        apiBase: 'https://api.openai.com/v1',
-        apiKey: 'test-key',
-      });
+      setCredential('openai' as Provider, { apiKey: 'sk-test-key' });
 
       const fileContent = fs.readFileSync(testFilePath, 'utf8');
       const data = JSON.parse(fileContent);
 
       expect(Object.keys(data).length).toBe(1);
+      expect(data.openai?.apiKey).toBe('sk-test-key');
     });
 
-    it('should create multiple credentials', () => {
-      createCredential({
-        name: 'MiniMax',
-        provider: 'anthropic',
-        apiBase: 'https://api.minimax.chat/v1',
-        apiKey: 'key1',
-      });
+    it('should overwrite existing credential', () => {
+      setCredential('anthropic' as Provider, { apiKey: 'key1' });
+      setCredential('anthropic' as Provider, { apiKey: 'key2' });
 
-      createCredential({
-        name: 'ZhipuAI',
-        provider: 'anthropic',
-        apiBase: 'https://open.bigmodel.cn/api/paas/v4',
-        apiKey: 'key2',
-      });
-
-      createCredential({
-        name: 'DeepSeek',
-        provider: 'openai',
-        apiBase: 'https://api.deepseek.com/v1',
-        apiKey: 'key3',
-      });
-
-      expect(listCredentials().length).toBe(3);
+      const credential = getCredential('anthropic' as Provider);
+      expect(credential?.apiKey).toBe('key2');
     });
   });
 
   describe('getCredential', () => {
     it('should return credential with full API key', () => {
-      const created = createCredential({
-        name: 'Test',
-        provider: 'anthropic',
-        apiBase: 'https://api.test.com',
+      setCredential('anthropic' as Provider, {
         apiKey: 'secret-key-123',
       });
 
-      const retrieved = getCredential(created.id);
+      const retrieved = getCredential('anthropic' as Provider);
 
       expect(retrieved).toBeDefined();
       expect(retrieved?.apiKey).toBe('secret-key-123');
     });
 
-    it('should return undefined for non-existent ID', () => {
-      expect(getCredential('non-existent-id')).toBeUndefined();
+    it('should return undefined for non-existent provider', () => {
+      expect(getCredential('anthropic' as Provider)).toBeUndefined();
     });
   });
 
-  describe('listCredentials', () => {
-    it('should return all credentials', () => {
-      createCredential({
-        name: 'MiniMax',
-        provider: 'anthropic',
-        apiBase: 'https://api.minimax.chat/v1',
-        apiKey: 'minimax-secret-key',
-      });
+  describe('listProvidersWithCredential', () => {
+    it('should return all providers with their status', () => {
+      setCredential('anthropic' as Provider, { apiKey: 'anthropic-key' });
+      setCredential('openai' as Provider, { apiKey: 'openai-key' });
 
-      createCredential({
-        name: 'DeepSeek',
-        provider: 'openai',
-        apiBase: 'https://api.deepseek.com/v1',
-        apiKey: 'deepseek-secret-key',
-      });
+      const list = listProvidersWithCredential();
 
-      const list = listCredentials();
+      expect(list.length).toBeGreaterThan(0);
+      const anthropic = list.find((p) => p.provider === 'anthropic');
+      const openai = list.find((p) => p.provider === 'openai');
 
-      expect(list.length).toBe(2);
-    });
-  });
-
-  describe('updateCredential', () => {
-    it('should update credential fields', () => {
-      const created = createCredential({
-        name: 'Original',
-        provider: 'anthropic',
-        apiBase: 'https://original.com',
-        apiKey: 'original-key',
-      });
-
-      const updated = updateCredential(created.id, {
-        name: 'Updated',
-        apiKey: 'new-key-12345',
-      });
-
-      expect(updated.name).toBe('Updated');
-      expect(updated.apiKey).toBe('new-key-12345');
-      expect(updated.provider).toBe('anthropic');
-    });
-
-    it('should throw error for non-existent credential', () => {
-      expect(() => updateCredential('non-existent', { name: 'Test' })).toThrow(
-        'Credential not found'
-      );
-    });
-
-    it('should persist updates to file', () => {
-      const created = createCredential({
-        name: 'Test',
-        provider: 'openai',
-        apiBase: 'https://test.com',
-        apiKey: 'key',
-      });
-
-      updateCredential(created.id, { name: 'Updated' });
-
-      initCredentialPool(testFilePath);
-      const retrieved = getCredential(created.id);
-
-      expect(retrieved?.name).toBe('Updated');
+      expect(anthropic?.hasCredential).toBe(true);
+      expect(openai?.hasCredential).toBe(true);
     });
   });
 
   describe('deleteCredential', () => {
     it('should delete credential', () => {
-      const created = createCredential({
-        name: 'To Delete',
-        provider: 'anthropic',
-        apiBase: 'https://test.com',
-        apiKey: 'key',
-      });
+      setCredential('anthropic' as Provider, { apiKey: 'key' });
 
-      expect(hasCredential(created.id)).toBe(true);
+      expect(hasCredential('anthropic' as Provider)).toBe(true);
 
-      deleteCredential(created.id);
+      deleteCredential('anthropic' as Provider);
 
-      expect(hasCredential(created.id)).toBe(false);
-      expect(getCredential(created.id)).toBeUndefined();
+      expect(hasCredential('anthropic' as Provider)).toBe(false);
+      expect(getCredential('anthropic' as Provider)).toBeUndefined();
     });
 
-    it('should throw error for non-existent credential', () => {
-      expect(() => deleteCredential('non-existent')).toThrow(
+    it('should throw error for non-existent provider', () => {
+      expect(() => deleteCredential('anthropic' as Provider)).toThrow(
         'Credential not found'
       );
     });
 
     it('should persist deletion to file', () => {
-      const created = createCredential({
-        name: 'Test',
-        provider: 'openai',
-        apiBase: 'https://test.com',
-        apiKey: 'key',
-      });
+      setCredential('openai' as Provider, { apiKey: 'key' });
 
-      deleteCredential(created.id);
+      deleteCredential('openai' as Provider);
 
       const fileContent = fs.readFileSync(testFilePath, 'utf8');
       const data = JSON.parse(fileContent);
@@ -233,91 +146,13 @@ describe('CredentialPool', () => {
 
   describe('hasCredential', () => {
     it('should return true for existing credential', () => {
-      const created = createCredential({
-        name: 'Test',
-        provider: 'anthropic',
-        apiBase: 'https://test.com',
-        apiKey: 'key',
-      });
+      setCredential('anthropic' as Provider, { apiKey: 'key' });
 
-      expect(hasCredential(created.id)).toBe(true);
+      expect(hasCredential('anthropic' as Provider)).toBe(true);
     });
 
     it('should return false for non-existent credential', () => {
-      expect(hasCredential('non-existent')).toBe(false);
-    });
-  });
-
-  describe('Real-world scenarios', () => {
-    it('should support MiniMax (Anthropic-compatible)', () => {
-      const credential = createCredential({
-        name: 'MiniMax',
-        provider: 'anthropic',
-        apiBase: 'https://api.minimax.chat/v1',
-        apiKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test',
-      });
-
-      expect(credential.provider).toBe('anthropic');
-      expect(credential.apiBase).toBe('https://api.minimax.chat/v1');
-    });
-
-    it('should support ZhipuAI (Anthropic-compatible)', () => {
-      const credential = createCredential({
-        name: 'ZhipuAI',
-        provider: 'anthropic',
-        apiBase: 'https://open.bigmodel.cn/api/paas/v4',
-        apiKey: 'zhipuai-api-key-abcdef',
-      });
-
-      expect(credential.provider).toBe('anthropic');
-      expect(credential.apiBase).toBe(
-        'https://open.bigmodel.cn/api/paas/v4'
-      );
-    });
-
-    it('should support DeepSeek (OpenAI-compatible)', () => {
-      const credential = createCredential({
-        name: 'DeepSeek',
-        provider: 'openai',
-        apiBase: 'https://api.deepseek.com/v1',
-        apiKey: 'sk-deepseek-key-12345678',
-      });
-
-      expect(credential.provider).toBe('openai');
-      expect(credential.apiBase).toBe('https://api.deepseek.com/v1');
-    });
-
-    it('should list all three providers', () => {
-      createCredential({
-        name: 'MiniMax',
-        provider: 'anthropic',
-        apiBase: 'https://api.minimax.chat/v1',
-        apiKey: 'minimax-key',
-      });
-
-      createCredential({
-        name: 'ZhipuAI',
-        provider: 'anthropic',
-        apiBase: 'https://open.bigmodel.cn/api/paas/v4',
-        apiKey: 'zhipu-key',
-      });
-
-      createCredential({
-        name: 'DeepSeek',
-        provider: 'openai',
-        apiBase: 'https://api.deepseek.com/v1',
-        apiKey: 'deepseek-key',
-      });
-
-      const list = listCredentials();
-
-      expect(list.length).toBe(3);
-
-      const anthropicCount = list.filter((c) => c.provider === 'anthropic').length;
-      const openaiCount = list.filter((c) => c.provider === 'openai').length;
-
-      expect(anthropicCount).toBe(2);
-      expect(openaiCount).toBe(1);
+      expect(hasCredential('anthropic' as Provider)).toBe(false);
     });
   });
 });

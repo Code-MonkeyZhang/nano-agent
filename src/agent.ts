@@ -1,17 +1,15 @@
 import { Logger } from './util/logger.js';
-import { LLMClient } from './llm-client/llm-client.js';
+import { stream, type Model, type Api } from '@mariozechner/pi-ai';
 import type { Tool, ToolResult } from './tools/index.js';
 import type { Message, ToolCall, AgentEvent } from './schema/index.js';
 import { getGlobalAbortController } from './server/http-server.js';
 import type { AgentRunConfig } from './agent-factory/types.js';
 import type { SkillEntry } from './skill-pool/types.js';
+import {
+  createContext,
+  convertPiAiToolCallToNanoAgent,
+} from './converters/pi-ai-converter.js';
 
-/**
- * Build the complete system prompt from components.
- *
- * Combines: basePrompt + skills + workspace info
- * All system prompt building logic is centralized here.
- */
 function buildSystemPrompt(
   basePrompt: string,
   skills: SkillEntry[],
@@ -52,7 +50,8 @@ All relative paths will be resolved relative to this directory.`;
  */
 export class AgentCore {
   public runConfig: AgentRunConfig;
-  public llmClient: LLMClient;
+  public model: Model<Api>;
+  public apiKey: string;
   public systemPrompt: string;
   public maxSteps: number;
   public messages: Message[] = [];
@@ -64,13 +63,8 @@ export class AgentCore {
     this.maxSteps = config.maxSteps;
     this.workspaceDir = workspaceDir;
 
-    this.llmClient = new LLMClient(
-      config.apiKey,
-      config.apiBase,
-      config.provider,
-      config.model,
-      config.retry
-    );
+    this.model = config.model;
+    this.apiKey = config.apiKey;
 
     this.systemPrompt = buildSystemPrompt(
       config.baseSystemPrompt,
@@ -84,13 +78,6 @@ export class AgentCore {
 
     this.messages = [{ role: 'system', content: this.systemPrompt }];
     Logger.log('AGENT', `AgentCore created with ${config.tools.length} tools`);
-  }
-
-  /**
-   * Check if the LLM API connection is valid.
-   */
-  async checkConnection(): Promise<boolean> {
-    return await this.llmClient.checkConnection();
   }
 
   addUserMessage(content: string): void {
@@ -145,41 +132,48 @@ export class AgentCore {
 
       let fullContent = '';
       let fullThinking = '';
-      let toolCalls: ToolCall[] | null = null;
+      const toolCalls: ToolCall[] = [];
       const toolList = this.listTools();
 
-      for await (const chunk of this.llmClient.generateStream(
-        this.messages,
-        toolList
-      )) {
+      const context = createContext(this.systemPrompt, this.messages, toolList);
+
+      const eventStream = stream(this.model, context, { apiKey: this.apiKey });
+
+      for await (const event of eventStream) {
         const abortCtrl = getGlobalAbortController();
         if (abortCtrl?.signal.aborted) {
           return '';
         }
-
-        if (chunk.thinking) {
-          yield { type: 'thinking', content: chunk.thinking };
-          fullThinking += chunk.thinking;
+        // 每个chunk都会转换成 nano-agent自己的event-type TODO: 以后可能要统一使用pi-ai的event
+        if (event.type === 'thinking_delta') {
+          yield { type: 'thinking', content: event.delta };
+          fullThinking += event.delta;
         }
 
-        if (chunk.content) {
-          yield { type: 'content', content: chunk.content };
-          fullContent += chunk.content;
+        if (event.type === 'text_delta') {
+          yield { type: 'content', content: event.delta };
+          fullContent += event.delta;
         }
 
-        if (chunk.tool_calls) {
-          toolCalls = chunk.tool_calls;
+        if (event.type === 'toolcall_end') {
+          const nanoToolCall = convertPiAiToolCallToNanoAgent(event.toolCall);
+          toolCalls.push(nanoToolCall);
+        }
+
+        if (event.type === 'done' || event.type === 'error') {
+          break;
         }
       }
 
+      // add full content to messages
       this.messages.push({
         role: 'assistant',
         content: fullContent,
         thinking: fullThinking || undefined,
-        tool_calls: toolCalls || undefined,
+        tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
       });
 
-      if (!toolCalls || toolCalls.length === 0) {
+      if (toolCalls.length === 0) {
         return fullContent;
       }
 

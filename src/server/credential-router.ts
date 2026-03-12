@@ -5,51 +5,38 @@
  * API keys are masked in responses for security.
  *
  * Endpoints:
- * - GET  /api/credentials - List all credentials (apiKey masked)
- * - GET  /api/credentials/:id - Get single credential (apiKey masked)
- * - POST /api/credentials - Create credential
- * - PUT  /api/credentials/:id - Update credential
- * - DELETE /api/credentials/:id - Delete credential
+ * - GET  /api/providers - List all supported providers
+ * - GET  /api/credentials/:provider - Get provider credential (apiKey masked)
+ * - PUT  /api/credentials/:provider - Set provider credential
+ * - DELETE /api/credentials/:provider - Delete provider credential
  */
 
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import {
-  listCredentials,
+  listProvidersWithCredential,
   getCredential,
-  createCredential,
-  updateCredential,
+  setCredential,
   deleteCredential,
   maskApiKey,
 } from '../credential/index.js';
-import type { CreateCredentialInput, Credential } from '../credential/index.js';
+import type { Provider, ProviderCredential } from '../credential/index.js';
+import { getProviders } from '@mariozechner/pi-ai';
 import { Logger } from '../util/logger.js';
-
-/**
- * Masks the apiKey in a credential for safe API responses.
- */
-function toSafeCredential(cred: Credential) {
-  return {
-    ...cred,
-    apiKey: maskApiKey(cred.apiKey),
-  };
-}
 
 export function createCredentialRouter(): Router {
   const router = Router();
 
   /**
-   * GET /api/credentials
-   * List all credentials with masked API keys.
+   * GET /api/providers
+   * List all supported providers with their credential status.
    */
   router.get('/', (_req: Request, res: Response) => {
     try {
-      const credentials = listCredentials();
-      res.json({
-        credentials: credentials.map(toSafeCredential),
-      });
+      const providers = listProvidersWithCredential();
+      res.json({ providers });
     } catch (error) {
-      Logger.log('CREDENTIAL', 'Error listing credentials', error);
+      Logger.log('CREDENTIAL', 'Error listing providers', error);
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -57,26 +44,45 @@ export function createCredentialRouter(): Router {
   });
 
   /**
-   * GET /api/credentials/:id
-   * Get a single credential by ID with masked API key.
+   * GET /api/providers/all
+   * List all supported providers (no credential status).
    */
-  router.get('/:id', (req: Request, res: Response) => {
+  router.get('/all', (_req: Request, res: Response) => {
     try {
-      const id = Array.isArray(req.params['id'])
-        ? req.params['id'][0]
-        : req.params['id'];
-      if (!id) {
-        res.status(400).json({ error: 'Credential ID is required' });
+      const providers = getProviders();
+      res.json({ providers });
+    } catch (error) {
+      Logger.log('CREDENTIAL', 'Error listing all providers', error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  /**
+   * GET /api/credentials/:provider
+   * Get a single provider's credential with masked API key.
+   */
+  router.get('/:provider', (req: Request, res: Response) => {
+    try {
+      const provider = Array.isArray(req.params['provider'])
+        ? req.params['provider'][0]
+        : req.params['provider'];
+      if (!provider) {
+        res.status(400).json({ error: 'Provider is required' });
         return;
       }
 
-      const credential = getCredential(id);
+      const credential = getCredential(provider as Provider);
       if (!credential) {
-        res.status(404).json({ error: 'Credential not found' });
+        res.status(404).json({ error: 'Credential not found for provider' });
         return;
       }
 
-      res.json({ credential: toSafeCredential(credential) });
+      res.json({
+        provider,
+        apiKey: maskApiKey(credential.apiKey),
+      });
     } catch (error) {
       Logger.log('CREDENTIAL', 'Error getting credential', error);
       res.status(500).json({
@@ -86,27 +92,37 @@ export function createCredentialRouter(): Router {
   });
 
   /**
-   * POST /api/credentials
-   * Create a new credential.
+   * PUT /api/credentials/:provider
+   * Set a provider's credential.
    *
-   * @body { name, provider, apiBase, apiKey }
+   * @body { apiKey }
    */
-  router.post('/', (req: Request, res: Response) => {
+  router.put('/:provider', (req: Request, res: Response) => {
     try {
-      const input = req.body as CreateCredentialInput;
+      const provider = Array.isArray(req.params['provider'])
+        ? req.params['provider'][0]
+        : req.params['provider'];
+      if (!provider) {
+        res.status(400).json({ error: 'Provider is required' });
+        return;
+      }
 
-      if (!input.name || !input.provider || !input.apiBase || !input.apiKey) {
+      const input = req.body as ProviderCredential;
+      if (!input.apiKey) {
         res.status(400).json({
-          error: 'Missing required fields: name, provider, apiBase, apiKey',
+          error: 'Missing required field: apiKey',
         });
         return;
       }
 
-      const credential = createCredential(input);
-      Logger.log('CREDENTIAL', `Created credential: ${credential.id}`);
-      res.status(201).json({ credential: toSafeCredential(credential) });
+      const credential = setCredential(provider as Provider, input);
+      Logger.log('CREDENTIAL', `Set credential for provider: ${provider}`);
+      res.json({
+        provider,
+        apiKey: maskApiKey(credential.apiKey),
+      });
     } catch (error) {
-      Logger.log('CREDENTIAL', 'Error creating credential', error);
+      Logger.log('CREDENTIAL', 'Error setting credential', error);
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -114,60 +130,27 @@ export function createCredentialRouter(): Router {
   });
 
   /**
-   * PUT /api/credentials/:id
-   * Update an existing credential.
-   *
-   * @body { name?, provider?, apiBase?, apiKey? }
+   * DELETE /api/credentials/:provider
+   * Delete a provider's credential.
    */
-  router.put('/:id', (req: Request, res: Response) => {
+  router.delete('/:provider', (req: Request, res: Response) => {
     try {
-      const id = Array.isArray(req.params['id'])
-        ? req.params['id'][0]
-        : req.params['id'];
-      if (!id) {
-        res.status(400).json({ error: 'Credential ID is required' });
+      const provider = Array.isArray(req.params['provider'])
+        ? req.params['provider'][0]
+        : req.params['provider'];
+      if (!provider) {
+        res.status(400).json({ error: 'Provider is required' });
         return;
       }
 
-      const existing = getCredential(id);
+      const existing = getCredential(provider as Provider);
       if (!existing) {
-        res.status(404).json({ error: 'Credential not found' });
+        res.status(404).json({ error: 'Credential not found for provider' });
         return;
       }
 
-      const credential = updateCredential(id, req.body);
-      Logger.log('CREDENTIAL', `Updated credential: ${id}`);
-      res.json({ credential: toSafeCredential(credential) });
-    } catch (error) {
-      Logger.log('CREDENTIAL', 'Error updating credential', error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-  });
-
-  /**
-   * DELETE /api/credentials/:id
-   * Delete a credential.
-   */
-  router.delete('/:id', (req: Request, res: Response) => {
-    try {
-      const id = Array.isArray(req.params['id'])
-        ? req.params['id'][0]
-        : req.params['id'];
-      if (!id) {
-        res.status(400).json({ error: 'Credential ID is required' });
-        return;
-      }
-
-      const existing = getCredential(id);
-      if (!existing) {
-        res.status(404).json({ error: 'Credential not found' });
-        return;
-      }
-
-      deleteCredential(id);
-      Logger.log('CREDENTIAL', `Deleted credential: ${id}`);
+      deleteCredential(provider as Provider);
+      Logger.log('CREDENTIAL', `Deleted credential for provider: ${provider}`);
       res.json({ success: true });
     } catch (error) {
       Logger.log('CREDENTIAL', 'Error deleting credential', error);

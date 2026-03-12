@@ -25,7 +25,7 @@ export function StartupSummary({ agent }: StartupSummaryProps) {
 
   const items = [
     { label: 'Agent', value: config.agentName },
-    { label: 'Model', value: config.model },
+    { label: 'Model', value: config.model.name ?? config.modelId },
     { label: 'Provider', value: config.provider },
     {
       label: 'MCP Servers',

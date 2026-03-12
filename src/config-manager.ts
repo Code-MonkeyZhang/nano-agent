@@ -28,15 +28,13 @@ const ToolsSchema = z.object({
 });
 
 const ConfigSchema = z.object({
-  apiKey: z.string().min(1, 'Please configure a valid API Key'),
-  apiBase: z.string(),
-  model: z.string(),
-  provider: z.enum(['anthropic', 'openai']),
-  enableLogging: z.boolean(),
-  retry: RetrySchema,
-  maxSteps: z.number(),
-  systemPromptPath: z.string(),
-  tools: ToolsSchema,
+  enableLogging: z.boolean().optional().default(false),
+  retry: RetrySchema.optional().default({ enabled: true, maxRetries: 3 }),
+  tools: ToolsSchema.optional().default({
+    skillsDir: './skills',
+    mcpConfigPath: 'mcp.json',
+    mcp: { connectTimeout: 10, executeTimeout: 60, sseReadTimeout: 120 },
+  }),
 });
 
 export type AgentConfig = z.infer<typeof ConfigSchema>;

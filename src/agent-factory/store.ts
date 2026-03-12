@@ -6,6 +6,7 @@ import { getCredential } from '../credential/store.js';
 import { getAllBuiltinTools } from '../builtin-tool-pool/store.js';
 import { getMcpToolsForServers } from '../mcp-pool/store.js';
 import { getSkill } from '../skill-pool/store.js';
+import { getModel } from '@mariozechner/pi-ai';
 import type { AgentId } from '../agent-config/types.js';
 import type { SkillId } from '../skill-pool/types.js';
 import type { AgentRunConfig } from './types.js';
@@ -63,24 +64,28 @@ export async function createAgent(
     throw new Error(`Agent not found: ${agentId}`);
   }
 
-  if (!agentConfig.credentialId) {
+  const credential = getCredential(agentConfig.provider);
+  if (!credential) {
     throw new Error(
-      `Agent '${agentId}' has no credential configured. ` +
-        `Please assign a credential in agent settings.`
+      `No credential found for provider '${agentConfig.provider}'. ` +
+        `Please configure your API key in agent settings.`
     );
   }
 
-  const credential = getCredential(agentConfig.credentialId);
-  if (!credential) {
+  const model = getModel(
+    agentConfig.provider,
+    agentConfig.modelId as Parameters<typeof getModel>[1]
+  );
+
+  if (!model) {
     throw new Error(
-      `Credential not found: ${agentConfig.credentialId} ` +
-        `for agent '${agentId}'`
+      `Model not found: ${agentConfig.provider}/${agentConfig.modelId}`
     );
   }
 
   Logger.log(
     'AGENT-FACTORY',
-    `Creating agent '${agentConfig.name}' with model ${agentConfig.model}`
+    `Creating agent '${agentConfig.name}' with model ${model.id} (${model.provider})`
   );
 
   const builtinTools = getAllBuiltinTools();
@@ -99,10 +104,10 @@ export async function createAgent(
 
   const runConfig: AgentRunConfig = {
     agentName: agentConfig.name,
-    provider: credential.provider,
-    apiBase: credential.apiBase,
+    provider: agentConfig.provider,
+    modelId: model.id,
+    model: model,
     apiKey: credential.apiKey,
-    model: agentConfig.model,
     baseSystemPrompt: agentConfig.systemPrompt,
     skills,
     mcpServerNames: agentConfig.mcpIds,

@@ -1,19 +1,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { getProviders } from '@mariozechner/pi-ai';
 import type {
-  Credential,
-  CredentialId,
-  CreateCredentialInput,
-  UpdateCredentialInput,
+  Provider,
+  ProviderCredential,
+  CredentialsStore,
 } from './types.js';
 
-let credentials: Map<CredentialId, Credential> = new Map();
+let credentials: CredentialsStore = {} as CredentialsStore;
 let dataFilePath: string | null = null;
-
-function generateId(): CredentialId {
-  return randomUUID();
-}
 
 function ensureDataDir(): void {
   if (!dataFilePath) return;
@@ -33,8 +28,8 @@ function loadFromFile(): void {
     return;
   }
 
-  const data = JSON.parse(content) as Record<string, Credential>;
-  credentials = new Map(Object.entries(data));
+  const data = JSON.parse(content) as CredentialsStore;
+  credentials = data;
 }
 
 function saveToFile(): void {
@@ -45,87 +40,59 @@ function saveToFile(): void {
   }
 
   ensureDataDir();
-  const data = Object.fromEntries(credentials);
-  fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2));
+  fs.writeFileSync(dataFilePath, JSON.stringify(credentials, null, 2));
 }
 
-/**
- * Initialize the credential pool from a JSON file.
- */
 export function initCredentialPool(filePath: string): void {
   dataFilePath = filePath;
-  credentials = new Map();
+  credentials = {} as CredentialsStore;
   loadFromFile();
 }
 
-/**
- * Create a new credential and persist it.
- */
-export function createCredential(input: CreateCredentialInput): Credential {
-  const id = generateId();
-  const credential: Credential = { ...input, id };
-  credentials.set(id, credential);
+export function setCredential(
+  provider: Provider,
+  credential: ProviderCredential
+): ProviderCredential {
+  credentials[provider] = credential;
   saveToFile();
   return credential;
 }
 
-/**
- * Update an existing credential.
- */
-export function updateCredential(
-  id: CredentialId,
-  input: UpdateCredentialInput
-): Credential {
-  const existing = credentials.get(id);
-  if (!existing) {
-    throw new Error(`Credential not found: ${id}`);
+export function deleteCredential(provider: Provider): void {
+  if (!credentials[provider]) {
+    throw new Error(`Credential not found for provider: ${provider}`);
   }
-
-  const updated: Credential = { ...existing, ...input, id };
-  credentials.set(id, updated);
-  saveToFile();
-  return updated;
-}
-
-/**
- * Delete a credential by ID.
- */
-export function deleteCredential(id: CredentialId): void {
-  if (!credentials.has(id)) {
-    throw new Error(`Credential not found: ${id}`);
-  }
-  credentials.delete(id);
+  delete credentials[provider];
   saveToFile();
 }
 
-/**
- * Get a credential by ID.
- */
-export function getCredential(id: CredentialId): Credential | undefined {
-  return credentials.get(id);
+export function getCredential(
+  provider: Provider
+): ProviderCredential | undefined {
+  return credentials[provider];
 }
 
-/**
- * List all credentials.
- */
-export function listCredentials(): Credential[] {
-  return Array.from(credentials.values());
+export interface ProviderStatus {
+  provider: Provider;
+  hasCredential: boolean;
+  apiKey?: string;
 }
 
-/**
- * Check if a credential exists.
- */
-export function hasCredential(id: CredentialId): boolean {
-  return credentials.has(id);
+export function listProvidersWithCredential(): ProviderStatus[] {
+  const allProviders = getProviders();
+  return allProviders.map((p) => ({
+    provider: p,
+    hasCredential: !!credentials[p],
+    apiKey: credentials[p]?.apiKey
+      ? maskApiKey(credentials[p].apiKey)
+      : undefined,
+  }));
 }
 
-/**
- * Mask an API key for safe display.
- * Shows first 7 and last 3 characters, with *** in between.
- *
- * @param apiKey - The API key to mask
- * @returns Masked API key (e.g., "sk-abc12***xyz")
- */
+export function hasCredential(provider: Provider): boolean {
+  return !!credentials[provider];
+}
+
 export function maskApiKey(apiKey: string): string {
   if (apiKey.length <= 10) {
     return '***';

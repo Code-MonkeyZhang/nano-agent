@@ -1,17 +1,15 @@
 export {
   initCredentialPool,
-  createCredential,
-  updateCredential,
+  setCredential,
   deleteCredential,
   getCredential,
-  listCredentials,
+  listProvidersWithCredential,
   hasCredential,
   maskApiKey,
+  type ProviderStatus,
 } from './store.js';
 export type {
   Provider,
-  CredentialId,
-  Credential,
-  CreateCredentialInput,
-  UpdateCredentialInput,
+  ProviderCredential,
+  CredentialsStore,
 } from './types.js';

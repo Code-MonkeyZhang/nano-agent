@@ -1,7 +1,7 @@
-import type { Provider } from '../credential/index.js';
 import type { Tool } from '../tools/base.js';
 import type { SkillEntry } from '../skill-pool/types.js';
 import type { RetryConfig } from '../config.js';
+import type { Model, Api } from '@mariozechner/pi-ai';
 
 /**
  * Configuration needed to run an agent.
@@ -11,10 +11,10 @@ import type { RetryConfig } from '../config.js';
  */
 export interface AgentRunConfig {
   agentName: string;
-  provider: Provider;
-  apiBase: string;
+  provider: string;
+  modelId: string;
+  model: Model<Api>;
   apiKey: string;
-  model: string;
   baseSystemPrompt: string;
   skills: SkillEntry[];
   mcpServerNames: string[];
