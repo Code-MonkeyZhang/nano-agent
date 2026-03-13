@@ -15,6 +15,7 @@ import { createAgentRouter } from '../src/server/agent-router.js';
 import { createBuiltinToolRouter } from '../src/server/builtin-tool-router.js';
 import { createMcpRouter } from '../src/server/mcp-router.js';
 import { createSkillRouter } from '../src/server/skill-router.js';
+import { createSessionRouter } from '../src/server/sessions.js';
 
 function findAvailablePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -78,6 +79,7 @@ describe('Phase 8: HTTP API Tests', () => {
     app.use('/api/builtin-tools', createBuiltinToolRouter());
     app.use('/api/mcp', createMcpRouter());
     app.use('/api/skills', createSkillRouter());
+    app.use('/api/sessions', createSessionRouter());
 
     PORT = await findAvailablePort();
     BASE_URL = `http://localhost:${PORT}`;
@@ -510,9 +512,315 @@ describe('Phase 8: HTTP API Tests', () => {
         expect(response.status).toBe(404);
       });
     });
+
+    describe('POST /api/skills/:id/reload', () => {
+      it('should return 404 for non-existent skill', async () => {
+        const response = await fetch(`${BASE_URL}/api/skills/skill:nonexistent/reload`, {
+          method: 'POST',
+        });
+        expect(response.status).toBe(404);
+      });
+    });
   });
 
-  describe('8.6 Relationship and Boundary Tests', () => {
+  describe('8.6 Session Management API', () => {
+    let testAgentId: string;
+
+    beforeEach(async () => {
+      await fetch(`${BASE_URL}/api/credentials/openai`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: 'test-key' }),
+      });
+
+      const agentResponse = await fetch(`${BASE_URL}/api/agents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: `session-test-agent-${Date.now()}`,
+          name: 'Session Test Agent',
+          systemPrompt: 'Test',
+          provider: 'openai',
+          modelId: 'gpt-4o',
+          maxSteps: 5,
+          mcpIds: [],
+          skillIds: [],
+          defaultWorkspacePath: '/tmp/test-workspace-default',
+        }),
+      });
+      const agentData = (await agentResponse.json()) as { agent: { id: string } };
+      testAgentId = agentData.agent.id;
+    });
+
+    describe('POST /api/sessions', () => {
+      it('should create a session with agentId', async () => {
+        const response = await fetch(`${BASE_URL}/api/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: testAgentId,
+            title: 'Test Session',
+          }),
+        });
+
+        expect(response.status).toBe(201);
+        const data = (await response.json()) as {
+          session: { id: string; agentId: string; title: string };
+        };
+        expect(data.session.agentId).toBe(testAgentId);
+        expect(data.session.title).toBe('Test Session');
+      });
+
+      it('should create a session with custom workspacePath', async () => {
+        const customWorkspace = '/tmp/custom-workspace-test';
+        const response = await fetch(`${BASE_URL}/api/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: testAgentId,
+            title: 'Custom Workspace Session',
+            workspacePath: customWorkspace,
+          }),
+        });
+
+        expect(response.status).toBe(201);
+        const data = (await response.json()) as {
+          session: { workspacePath: string };
+        };
+        expect(data.session.workspacePath).toBe(customWorkspace);
+      });
+
+      it('should use agent default workspace when workspacePath not specified', async () => {
+        const response = await fetch(`${BASE_URL}/api/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: testAgentId,
+            title: 'Default Workspace Session',
+          }),
+        });
+
+        expect(response.status).toBe(201);
+        const data = (await response.json()) as {
+          session: { workspacePath: string };
+        };
+        expect(data.session.workspacePath).toBe('/tmp/test-workspace-default');
+      });
+
+      it('should return 400 when agentId is missing', async () => {
+        const response = await fetch(`${BASE_URL}/api/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'No Agent' }),
+        });
+
+        expect(response.status).toBe(400);
+      });
+    });
+
+    describe('GET /api/sessions', () => {
+      it('should list all sessions', async () => {
+        const response = await fetch(`${BASE_URL}/api/sessions`);
+        expect(response.status).toBe(200);
+
+        const data = (await response.json()) as { sessions: unknown[] };
+        expect(Array.isArray(data.sessions)).toBe(true);
+      });
+
+      it('should filter sessions by agentId', async () => {
+        await fetch(`${BASE_URL}/api/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: testAgentId,
+            title: 'Filter Test Session',
+          }),
+        });
+
+        const response = await fetch(
+          `${BASE_URL}/api/sessions?agentId=${testAgentId}`
+        );
+        expect(response.status).toBe(200);
+
+        const data = (await response.json()) as {
+          sessions: Array<{ agentId: string }>;
+        };
+        expect(data.sessions.every((s) => s.agentId === testAgentId)).toBe(true);
+      });
+    });
+
+    describe('GET /api/sessions/:id', () => {
+      it('should return a single session', async () => {
+        const createResponse = await fetch(`${BASE_URL}/api/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: testAgentId,
+            title: 'Get Test Session',
+          }),
+        });
+        const createData = (await createResponse.json()) as {
+          session: { id: string };
+        };
+        const sessionId = createData.session.id;
+
+        const response = await fetch(`${BASE_URL}/api/sessions/${sessionId}`);
+        expect(response.status).toBe(200);
+
+        const data = (await response.json()) as {
+          session: { id: string; title: string };
+        };
+        expect(data.session.id).toBe(sessionId);
+        expect(data.session.title).toBe('Get Test Session');
+      });
+
+      it('should return 404 for non-existent session', async () => {
+        const response = await fetch(
+          `${BASE_URL}/api/sessions/non-existent-session-id`
+        );
+        expect(response.status).toBe(404);
+      });
+    });
+
+    describe('PUT /api/sessions/:id', () => {
+      it('should update session workspacePath', async () => {
+        const createResponse = await fetch(`${BASE_URL}/api/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: testAgentId,
+            title: 'Update Test Session',
+          }),
+        });
+        const createData = (await createResponse.json()) as {
+          session: { id: string };
+        };
+        const sessionId = createData.session.id;
+
+        const newWorkspace = '/tmp/updated-workspace';
+        const response = await fetch(`${BASE_URL}/api/sessions/${sessionId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspacePath: newWorkspace }),
+        });
+
+        expect(response.status).toBe(200);
+        const data = (await response.json()) as {
+          session: { workspacePath: string };
+        };
+        expect(data.session.workspacePath).toBe(newWorkspace);
+      });
+
+      it('should update session title', async () => {
+        const createResponse = await fetch(`${BASE_URL}/api/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: testAgentId,
+            title: 'Original Title',
+          }),
+        });
+        const createData = (await createResponse.json()) as {
+          session: { id: string };
+        };
+        const sessionId = createData.session.id;
+
+        const response = await fetch(`${BASE_URL}/api/sessions/${sessionId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Updated Title' }),
+        });
+
+        expect(response.status).toBe(200);
+        const data = (await response.json()) as {
+          session: { title: string };
+        };
+        expect(data.session.title).toBe('Updated Title');
+      });
+
+      it('should return 404 for non-existent session', async () => {
+        const response = await fetch(
+          `${BASE_URL}/api/sessions/non-existent-session-id`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: 'Test' }),
+          }
+        );
+        expect(response.status).toBe(404);
+      });
+    });
+
+    describe('DELETE /api/sessions/:id', () => {
+      it('should delete a session', async () => {
+        const createResponse = await fetch(`${BASE_URL}/api/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: testAgentId,
+            title: 'To Delete',
+          }),
+        });
+        const createData = (await createResponse.json()) as {
+          session: { id: string };
+        };
+        const sessionId = createData.session.id;
+
+        const response = await fetch(`${BASE_URL}/api/sessions/${sessionId}`, {
+          method: 'DELETE',
+        });
+        expect(response.status).toBe(200);
+
+        const getResponse = await fetch(`${BASE_URL}/api/sessions/${sessionId}`);
+        expect(getResponse.status).toBe(404);
+      });
+
+      it('should return 404 for non-existent session', async () => {
+        const response = await fetch(
+          `${BASE_URL}/api/sessions/non-existent-session-id`,
+          {
+            method: 'DELETE',
+          }
+        );
+        expect(response.status).toBe(404);
+      });
+    });
+  });
+
+  describe('8.7 Credential Extended API', () => {
+    describe('GET /api/credentials/all', () => {
+      it('should list all supported providers', async () => {
+        const response = await fetch(`${BASE_URL}/api/credentials/all`);
+        expect(response.status).toBe(200);
+
+        const data = (await response.json()) as {
+          providers: string[];
+        };
+        expect(Array.isArray(data.providers)).toBe(true);
+        expect(data.providers.length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('8.8 MCP Extended API', () => {
+    describe('POST /api/mcp/:name/connect', () => {
+      it('should return 404 for non-existent MCP server', async () => {
+        const response = await fetch(`${BASE_URL}/api/mcp/non-existent/connect`, {
+          method: 'POST',
+        });
+        expect(response.status).toBe(404);
+      });
+    });
+
+    describe('GET /api/mcp/:name/tools', () => {
+      it('should return 404 for non-existent MCP server', async () => {
+        const response = await fetch(`${BASE_URL}/api/mcp/non-existent/tools`);
+        expect(response.status).toBe(404);
+      });
+    });
+  });
+
+  describe('8.9 Relationship and Boundary Tests', () => {
     it('should create agent with reference to existing credential', async () => {
       await fetch(`${BASE_URL}/api/credentials/openai`, {
         method: 'PUT',

@@ -1,6 +1,7 @@
 import * as net from 'node:net';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   httpServer,
   setupOpenAIRoutes,
@@ -46,11 +47,17 @@ function isPortAvailable(port: number): Promise<boolean> {
 
 type ServerStatusCallback = (state: ServerState) => void;
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
+const DEFAULT_WORKSPACE_DIR = path.join(DATA_DIR, 'agent-space');
 
 function ensureDataDir(): void {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(DEFAULT_WORKSPACE_DIR)) {
+    fs.mkdirSync(DEFAULT_WORKSPACE_DIR, { recursive: true });
   }
 }
 
@@ -155,7 +162,7 @@ class ServerManager {
     this.enableTunnel = options.enableTunnel;
     this.tunnelFailed = false;
 
-    const workspaceDir = process.cwd();
+    const workspaceDir = DEFAULT_WORKSPACE_DIR;
 
     Logger.initialize(undefined, 'server', this.config.enableLogging);
     Logger.log('SERVER', 'Starting server', {

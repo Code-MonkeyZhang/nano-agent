@@ -1,10 +1,5 @@
 export {
   createAgent,
-  getCachedAgent,
-  clearAgentCache,
-  clearAllAgentCache,
-  isAgentCached,
-  reloadAgent,
   setDefaultWorkspaceDir,
   setGlobalRetryConfig,
 } from './store.js';

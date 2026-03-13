@@ -12,10 +12,19 @@ import {
 } from './http-server.js';
 import { getGlobalSessionManager } from './sessions.js';
 import { createAgent } from '../agent-factory/index.js';
+import { getAgentConfig } from '../agent-config/store.js';
 import type { Message } from '../schema/index.js';
 import type { AgentId } from '../agent-config/types.js';
 
+import * as path from 'node:path';
+
 const MAX_TITLE_LENGTH = 30;
+
+const DEFAULT_WORKSPACE_DIR = path.resolve(
+  process.cwd(),
+  'data',
+  'agent-space'
+);
 
 /**
  * Extracts text content from a message.
@@ -88,12 +97,14 @@ export function createChatRouter(): Router {
       const sessionManager = getGlobalSessionManager();
       let agentId: AgentId = 'adam';
       let isNewSession = false;
+      let workspacePath: string | undefined;
 
       if (sessionId && sessionManager) {
         const session = sessionManager.getSession(sessionId);
         if (session) {
           agentId = session.agentId;
           isNewSession = session.messageCount === 0;
+          workspacePath = session.workspacePath;
           Logger.log('CHAT', `Session ${sessionId} bound to agent ${agentId}`);
         } else {
           Logger.log(
@@ -103,7 +114,16 @@ export function createChatRouter(): Router {
         }
       }
 
-      const agent = await createAgent(agentId);
+      if (!workspacePath) {
+        const agentConfig = getAgentConfig(agentId);
+        workspacePath = agentConfig?.defaultWorkspacePath;
+      }
+
+      const finalWorkspaceDir = workspacePath ?? DEFAULT_WORKSPACE_DIR;
+      Logger.log('CHAT', `Using workspace: ${finalWorkspaceDir}`);
+
+      // TODO 现在每次发送请求都会创建一个Agent,这个迟早要改
+      const agent = await createAgent(agentId, finalWorkspaceDir);
 
       agent.messages = [{ role: 'system', content: agent.systemPrompt }];
 

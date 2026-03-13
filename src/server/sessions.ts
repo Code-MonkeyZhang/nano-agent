@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { SessionManager } from '../session/index.js';
+import { getAgentConfig } from '../agent-config/store.js';
 import { Logger } from '../util/logger.js';
 
 let globalSessionManager: SessionManager | null = null;
@@ -30,6 +31,7 @@ export function initGlobalSessionManager(): void {
  * - GET /api/sessions - List all sessions (optionally filtered by agentId)
  * - POST /api/sessions - Create a new session (requires agentId)
  * - GET /api/sessions/:id - Get a specific session
+ * - PUT /api/sessions/:id - Update a session (supports workspacePath)
  * - DELETE /api/sessions/:id - Delete a session
  *
  * @returns Express Router with session endpoints
@@ -81,13 +83,17 @@ export function createSessionRouter(): Router {
         return;
       }
 
-      const { agentId, title } = req.body;
+      const { agentId, title, workspacePath: customWorkspace } = req.body;
       if (!agentId) {
         res.status(400).json({ error: 'agentId is required' });
         return;
       }
 
-      const session = manager.createSession(agentId, { title });
+      const agentConfig = getAgentConfig(agentId);
+      const workspacePath =
+        customWorkspace ?? agentConfig?.defaultWorkspacePath;
+
+      const session = manager.createSession(agentId, { title, workspacePath });
 
       Logger.log(
         'SESSION',
@@ -162,6 +168,59 @@ export function createSessionRouter(): Router {
       res.json({ success: true });
     } catch (error) {
       Logger.log('SESSION', 'Error deleting session', error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  /**
+   * Update a session by ID.
+   * Currently supports updating workspacePath.
+   *
+   * @route PUT /api/sessions/:id
+   * @body { workspacePath?: string } - Fields to update
+   */
+  router.put('/:id', (req: Request, res: Response) => {
+    try {
+      const manager = getGlobalSessionManager();
+      if (!manager) {
+        res.status(500).json({ error: 'SessionManager not initialized' });
+        return;
+      }
+
+      const id = Array.isArray(req.params['id'])
+        ? req.params['id'][0]
+        : req.params['id'];
+      const { workspacePath, title } = req.body;
+
+      let session = manager.getSession(id);
+      if (!session) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+
+      if (workspacePath !== undefined) {
+        session = manager.updateWorkspacePath(id, workspacePath);
+        Logger.log(
+          'SESSION',
+          `Updated session ${id} workspace: ${workspacePath}`
+        );
+      }
+
+      if (title !== undefined) {
+        session = manager.updateTitle(id, title);
+        Logger.log('SESSION', `Updated session ${id} title: ${title}`);
+      }
+
+      if (workspacePath === undefined && title === undefined) {
+        res.status(400).json({ error: 'No valid fields to update' });
+        return;
+      }
+
+      res.json({ session });
+    } catch (error) {
+      Logger.log('SESSION', 'Error updating session', error);
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Unknown error',
       });

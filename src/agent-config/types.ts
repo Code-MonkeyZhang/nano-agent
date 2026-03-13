@@ -20,6 +20,7 @@ export interface AgentConfig {
   maxSteps: number;
   mcpIds: string[];
   skillIds: string[];
+  defaultWorkspacePath?: string;
 }
 
 /**
@@ -37,6 +38,7 @@ export type UpdateAgentConfigInput = Partial<Omit<AgentConfig, 'id'>>;
 /**
  * Default agent definitions for Adam and Eve.
  * Used when creating default agents on first startup.
+ * TODO 这个迟早要删
  */
 export const DEFAULT_AGENTS: Array<AgentConfig> = [
   {

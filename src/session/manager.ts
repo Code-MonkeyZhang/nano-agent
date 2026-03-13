@@ -53,6 +53,7 @@ export class SessionManager {
       updatedAt: now,
       messageCount: 0,
       messages: [],
+      workspacePath: options?.workspacePath,
     };
 
     this.store.saveSession(session);
@@ -156,6 +157,28 @@ export class SessionManager {
     return session;
   }
 
+  /**
+   * Updates the session's workspace path.
+   *
+   * @param id - Session identifier
+   * @param workspacePath - New workspace path
+   * @returns Updated session or null if session not found
+   */
+  updateWorkspacePath(id: string, workspacePath: string): Session | null {
+    const session = this.store.loadSession(id);
+    if (!session) {
+      return null;
+    }
+
+    session.workspacePath = workspacePath;
+    session.updatedAt = Date.now();
+
+    this.store.saveSession(session);
+    this.updateIndexEntry(session);
+
+    return session;
+  }
+
   private addToIndex(session: Session): void {
     const index = this.store.loadIndex();
     index.push(this.sessionToMeta(session));
@@ -186,6 +209,7 @@ export class SessionManager {
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
       messageCount: session.messageCount,
+      workspacePath: session.workspacePath,
     };
   }
 }
