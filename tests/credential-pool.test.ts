@@ -44,10 +44,10 @@ describe('CredentialPool', () => {
       const providers = listProvidersWithCredential();
 
       expect(providers.length).toBeGreaterThan(0);
-      expect(providers.find((p) => p.provider === 'anthropic')?.hasCredential).toBe(
+      expect(providers.find((p) => p.id === 'anthropic')?.hasCredential).toBe(
         true
       );
-      expect(providers.find((p) => p.provider === 'openai')?.hasCredential).toBe(
+      expect(providers.find((p) => p.id === 'openai')?.hasCredential).toBe(
         true
       );
     });
@@ -106,8 +106,8 @@ describe('CredentialPool', () => {
       const list = listProvidersWithCredential();
 
       expect(list.length).toBeGreaterThan(0);
-      const anthropic = list.find((p) => p.provider === 'anthropic');
-      const openai = list.find((p) => p.provider === 'openai');
+      const anthropic = list.find((p) => p.id === 'anthropic');
+      const openai = list.find((p) => p.id === 'openai');
 
       expect(anthropic?.hasCredential).toBe(true);
       expect(openai?.hasCredential).toBe(true);

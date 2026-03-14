@@ -84,6 +84,7 @@ export async function setupOpenAIRoutes(): Promise<void> {
   app.use('/api/sessions', createSessionRouter());
   app.use('/api/config', createConfigRouter());
   app.use('/api/credentials', createCredentialRouter());
+  app.use('/api/providers', createCredentialRouter());
   app.use('/api/agents', createAgentRouter());
   app.use('/api/builtin-tools', createBuiltinToolRouter());
   app.use('/api/mcp', createMcpRouter());

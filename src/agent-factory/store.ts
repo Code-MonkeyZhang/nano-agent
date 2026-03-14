@@ -71,9 +71,7 @@ export async function createAgent(
   );
 
   if (!model) {
-    throw new Error(
-      `Model not found: ${agentConfig.provider}/${modelIdToUse}`
-    );
+    throw new Error(`Model not found: ${agentConfig.provider}/${modelIdToUse}`);
   }
 
   Logger.log(

@@ -180,7 +180,8 @@ export function createCredentialRouter(): Router {
       }
 
       const input = (req.body || {}) as { apiKey?: string };
-      const apiKey = input.apiKey ?? getCredential(provider as Provider)?.apiKey;
+      const apiKey =
+        input.apiKey ?? getCredential(provider as Provider)?.apiKey;
 
       if (!apiKey) {
         res.json({
@@ -211,7 +212,9 @@ export function createCredentialRouter(): Router {
       try {
         await completeSimple(
           testModel,
-          { messages: [{ role: 'user', content: 'Hi', timestamp: Date.now() }] },
+          {
+            messages: [{ role: 'user', content: 'Hi', timestamp: Date.now() }],
+          },
           { apiKey, maxTokens: 5 }
         );
 
@@ -224,7 +227,11 @@ export function createCredentialRouter(): Router {
           verifyError instanceof Error
             ? verifyError.message
             : String(verifyError);
-        Logger.log('CREDENTIAL', `Verification failed for ${provider}:`, errorMessage);
+        Logger.log(
+          'CREDENTIAL',
+          `Verification failed for ${provider}:`,
+          errorMessage
+        );
         res.json({
           valid: false,
           error: errorMessage,

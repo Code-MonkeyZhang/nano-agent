@@ -1,11 +1,40 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { getProviders } from '@mariozechner/pi-ai';
+import { getProviders, getModels } from '@mariozechner/pi-ai';
 import type {
   Provider,
   ProviderCredential,
   CredentialsStore,
 } from './types.js';
+
+const PROVIDER_NAMES: Record<string, string> = {
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  google: 'Google',
+  'google-gemini-cli': 'Google Gemini CLI',
+  'google-antigravity': 'Google Antigravity',
+  'google-vertex': 'Google Vertex',
+  'azure-openai-responses': 'Azure OpenAI',
+  'openai-codex': 'OpenAI Codex',
+  'github-copilot': 'GitHub Copilot',
+  xai: 'xAI',
+  groq: 'Groq',
+  cerebras: 'Cerebras',
+  openrouter: 'OpenRouter',
+  'vercel-ai-gateway': 'Vercel AI Gateway',
+  zai: 'ZAI',
+  mistral: 'Mistral',
+  minimax: 'MiniMax',
+  'minimax-cn': 'MiniMax',
+  huggingface: 'Hugging Face',
+  opencode: 'OpenCode',
+  'opencode-go': 'OpenCode Go',
+  'kimi-coding': 'Kimi Coding',
+  deepseek: 'DeepSeek',
+  zhipu: '智谱 AI',
+  moonshot: '月之暗面',
+  alibaba: '阿里云',
+};
 
 let credentials: CredentialsStore = {} as CredentialsStore;
 let dataFilePath: string | null = null;
@@ -73,20 +102,26 @@ export function getCredential(
 }
 
 export interface ProviderStatus {
-  provider: Provider;
-  hasCredential: boolean;
+  id: string;
+  name: string;
   apiKey?: string;
+  models: string[];
+  hasCredential: boolean;
 }
 
 export function listProvidersWithCredential(): ProviderStatus[] {
   const allProviders = getProviders();
-  return allProviders.map((p) => ({
-    provider: p,
-    hasCredential: !!credentials[p],
-    apiKey: credentials[p]?.apiKey
-      ? maskApiKey(credentials[p].apiKey)
-      : undefined,
-  }));
+  return allProviders.map((p) => {
+    const models = getModels(p);
+    const hasCred = !!credentials[p];
+    return {
+      id: p,
+      name: PROVIDER_NAMES[p] || p,
+      apiKey: credentials[p]?.apiKey,
+      models: models.map((m) => m.id),
+      hasCredential: hasCred,
+    };
+  });
 }
 
 export function hasCredential(provider: Provider): boolean {

@@ -125,7 +125,11 @@ export function createChatRouter(): Router {
       Logger.log('CHAT', `Using workspace: ${finalWorkspaceDir}`);
 
       // TODO 现在每次发送请求都会创建一个Agent,这个迟早要改
-      const agent = await createAgent(agentId, finalWorkspaceDir, sessionModelId);
+      const agent = await createAgent(
+        agentId,
+        finalWorkspaceDir,
+        sessionModelId
+      );
 
       agent.messages = [{ role: 'system', content: agent.systemPrompt }];
 
