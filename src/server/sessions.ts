@@ -83,7 +83,7 @@ export function createSessionRouter(): Router {
         return;
       }
 
-      const { agentId, title, workspacePath: customWorkspace } = req.body;
+      const { agentId, title, workspacePath: customWorkspace, modelId } = req.body;
       if (!agentId) {
         res.status(400).json({ error: 'agentId is required' });
         return;
@@ -93,7 +93,7 @@ export function createSessionRouter(): Router {
       const workspacePath =
         customWorkspace ?? agentConfig?.defaultWorkspacePath;
 
-      const session = manager.createSession(agentId, { title, workspacePath });
+      const session = manager.createSession(agentId, { title, workspacePath, modelId });
 
       Logger.log(
         'SESSION',
@@ -192,7 +192,7 @@ export function createSessionRouter(): Router {
       const id = Array.isArray(req.params['id'])
         ? req.params['id'][0]
         : req.params['id'];
-      const { workspacePath, title } = req.body;
+      const { workspacePath, title, modelId } = req.body;
 
       let session = manager.getSession(id);
       if (!session) {
@@ -213,7 +213,12 @@ export function createSessionRouter(): Router {
         Logger.log('SESSION', `Updated session ${id} title: ${title}`);
       }
 
-      if (workspacePath === undefined && title === undefined) {
+      if (modelId !== undefined) {
+        session = manager.updateModelId(id, modelId);
+        Logger.log('SESSION', `Updated session ${id} modelId: ${modelId}`);
+      }
+
+      if (workspacePath === undefined && title === undefined && modelId === undefined) {
         res.status(400).json({ error: 'No valid fields to update' });
         return;
       }

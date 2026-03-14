@@ -7,6 +7,7 @@ import type { Message } from '../schema/index.js';
 export interface CreateSessionOptions {
   title?: string;
   workspacePath?: string;
+  modelId?: string;
 }
 
 /**
@@ -21,6 +22,7 @@ export interface SessionMeta {
   updatedAt: number;
   messageCount: number;
   workspacePath?: string;
+  modelId?: string;
 }
 
 /**

@@ -48,7 +48,8 @@ function collectSkills(skillIds: string[]): AgentRunConfig['skills'] {
  */
 export async function createAgent(
   agentId: AgentId,
-  workspaceDir?: string
+  workspaceDir?: string,
+  overrideModelId?: string
 ): Promise<AgentCore> {
   const agentConfig = getAgentConfig(agentId);
   if (!agentConfig) {
@@ -63,14 +64,15 @@ export async function createAgent(
     );
   }
 
+  const modelIdToUse = overrideModelId ?? agentConfig.modelId;
   const model = getModel(
     agentConfig.provider,
-    agentConfig.modelId as Parameters<typeof getModel>[1]
+    modelIdToUse as Parameters<typeof getModel>[1]
   );
 
   if (!model) {
     throw new Error(
-      `Model not found: ${agentConfig.provider}/${agentConfig.modelId}`
+      `Model not found: ${agentConfig.provider}/${modelIdToUse}`
     );
   }
 

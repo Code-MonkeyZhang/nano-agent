@@ -6,9 +6,11 @@
  *
  * Endpoints:
  * - GET  /api/providers - List all supported providers
+ * - GET  /api/providers/all - List all supported providers (no credential status)
  * - GET  /api/credentials/:provider - Get provider credential (apiKey masked)
  * - PUT  /api/credentials/:provider - Set provider credential
  * - DELETE /api/credentials/:provider - Delete provider credential
+ * - POST /api/credentials/:provider/verify - Verify provider credential
  */
 
 import { Router } from 'express';
@@ -21,7 +23,7 @@ import {
   maskApiKey,
 } from '../credential/index.js';
 import type { Provider, ProviderCredential } from '../credential/index.js';
-import { getProviders } from '@mariozechner/pi-ai';
+import { getProviders, getModels, completeSimple } from '@mariozechner/pi-ai';
 import { Logger } from '../util/logger.js';
 
 export function createCredentialRouter(): Router {
@@ -154,6 +156,82 @@ export function createCredentialRouter(): Router {
       res.json({ success: true });
     } catch (error) {
       Logger.log('CREDENTIAL', 'Error deleting credential', error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  /**
+   * POST /api/credentials/:provider/verify
+   * Verify a provider's credential by making a test API call.
+   *
+   * @body { apiKey?: string } - Optional API key to verify (uses stored key if not provided)
+   * @returns { valid: boolean, models?: string[], error?: string }
+   */
+  router.post('/:provider/verify', async (req: Request, res: Response) => {
+    try {
+      const provider = Array.isArray(req.params['provider'])
+        ? req.params['provider'][0]
+        : req.params['provider'];
+      if (!provider) {
+        res.status(400).json({ error: 'Provider is required' });
+        return;
+      }
+
+      const input = (req.body || {}) as { apiKey?: string };
+      const apiKey = input.apiKey ?? getCredential(provider as Provider)?.apiKey;
+
+      if (!apiKey) {
+        res.json({
+          valid: false,
+          error: 'No API key provided or stored',
+        });
+        return;
+      }
+
+      const models = getModels(provider as Provider);
+      if (models.length === 0) {
+        res.json({
+          valid: false,
+          error: 'No models found for provider',
+        });
+        return;
+      }
+
+      const testModel = models[0];
+      if (!testModel) {
+        res.json({
+          valid: false,
+          error: 'No test model available',
+        });
+        return;
+      }
+
+      try {
+        await completeSimple(
+          testModel,
+          { messages: [{ role: 'user', content: 'Hi', timestamp: Date.now() }] },
+          { apiKey, maxTokens: 5 }
+        );
+
+        res.json({
+          valid: true,
+          models: models.map((m) => m.id),
+        });
+      } catch (verifyError) {
+        const errorMessage =
+          verifyError instanceof Error
+            ? verifyError.message
+            : String(verifyError);
+        Logger.log('CREDENTIAL', `Verification failed for ${provider}:`, errorMessage);
+        res.json({
+          valid: false,
+          error: errorMessage,
+        });
+      }
+    } catch (error) {
+      Logger.log('CREDENTIAL', 'Error verifying credential', error);
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Unknown error',
       });

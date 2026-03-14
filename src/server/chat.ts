@@ -98,6 +98,7 @@ export function createChatRouter(): Router {
       let agentId: AgentId = 'adam';
       let isNewSession = false;
       let workspacePath: string | undefined;
+      let sessionModelId: string | undefined;
 
       if (sessionId && sessionManager) {
         const session = sessionManager.getSession(sessionId);
@@ -105,6 +106,7 @@ export function createChatRouter(): Router {
           agentId = session.agentId;
           isNewSession = session.messageCount === 0;
           workspacePath = session.workspacePath;
+          sessionModelId = session.modelId;
           Logger.log('CHAT', `Session ${sessionId} bound to agent ${agentId}`);
         } else {
           Logger.log(
@@ -123,7 +125,7 @@ export function createChatRouter(): Router {
       Logger.log('CHAT', `Using workspace: ${finalWorkspaceDir}`);
 
       // TODO 现在每次发送请求都会创建一个Agent,这个迟早要改
-      const agent = await createAgent(agentId, finalWorkspaceDir);
+      const agent = await createAgent(agentId, finalWorkspaceDir, sessionModelId);
 
       agent.messages = [{ role: 'system', content: agent.systemPrompt }];
 

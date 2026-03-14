@@ -54,6 +54,7 @@ export class SessionManager {
       messageCount: 0,
       messages: [],
       workspacePath: options?.workspacePath,
+      modelId: options?.modelId,
     };
 
     this.store.saveSession(session);
@@ -179,6 +180,21 @@ export class SessionManager {
     return session;
   }
 
+  updateModelId(id: string, modelId: string | undefined): Session | null {
+    const session = this.store.loadSession(id);
+    if (!session) {
+      return null;
+    }
+
+    session.modelId = modelId;
+    session.updatedAt = Date.now();
+
+    this.store.saveSession(session);
+    this.updateIndexEntry(session);
+
+    return session;
+  }
+
   private addToIndex(session: Session): void {
     const index = this.store.loadIndex();
     index.push(this.sessionToMeta(session));
@@ -210,6 +226,7 @@ export class SessionManager {
       updatedAt: session.updatedAt,
       messageCount: session.messageCount,
       workspacePath: session.workspacePath,
+      modelId: session.modelId,
     };
   }
 }

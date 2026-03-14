@@ -14,6 +14,7 @@ export type AgentId = string;
 export interface AgentConfig {
   id: AgentId;
   name: string;
+  description?: string;
   systemPrompt: string;
   provider: Provider;
   modelId: string;
@@ -44,6 +45,7 @@ export const DEFAULT_AGENTS: Array<AgentConfig> = [
   {
     id: 'adam',
     name: 'Adam',
+    description: 'Task and project management assistant',
     systemPrompt:
       "You are Adam, a task and project management assistant. Your primary focus is helping users organize their tasks, manage projects, and keep track of notes. You have access to TickTick for task management and Notion for note-taking. Be proactive in suggesting task organization strategies and helping users stay productive. Always ask clarifying questions to better understand the user's needs before creating or modifying tasks.",
     provider: 'openai',
@@ -55,6 +57,7 @@ export const DEFAULT_AGENTS: Array<AgentConfig> = [
   {
     id: 'eve',
     name: 'Eve',
+    description: 'Lifestyle and entertainment assistant',
     systemPrompt:
       'You are Eve, a lifestyle and entertainment assistant. Your primary focus is helping users discover and manage music, entertainment, and leisure activities. You have access to NetEase Cloud Music for music-related tasks. Be friendly, relaxed, and engaging. Help users find the right music for their mood, discover new artists, and create playlists. Keep conversations light and enjoyable.',
     provider: 'openai',
