@@ -1,46 +1,33 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import type { Session, SessionMeta } from './types.js';
 
-const SESSIONS_DIR_NAME = '.nano-agent';
 const SESSIONS_SUBDIR = 'sessions';
 const INDEX_FILE = 'sessions.json';
 
 /**
- * Finds the project root directory by searching for package.json.
- * Starts from the current file and walks up the directory tree.
- *
- * @returns Absolute path to the project root directory
- */
-function findProjectRoot(): string {
-  let currentDir = path.dirname(fileURLToPath(import.meta.url));
-
-  while (currentDir !== path.dirname(currentDir)) {
-    if (fs.existsSync(path.join(currentDir, 'package.json'))) {
-      return currentDir;
-    }
-    currentDir = path.dirname(currentDir);
-  }
-
-  return currentDir;
-}
-
-/**
  * 为Session提供CRUD文件操作的基础类
+ *
+ * 目录结构：
+ * {basePath}/
+ * ├── sessions.json    # 索引文件
+ * └── sessions/        # session 文件目录
  */
 export class SessionStore {
-  private basePath: string; // session保存总目录
-  private sessionsDir: string; //具体session文件夹目录
-  private indexPath: string; // session metadata目录
+  private basePath: string;
+  private sessionsDir: string;
+  private indexPath: string;
 
   /**
    * Creates SessionStore instance.
    *
-   * @param basePath - Optional custom base path. Defaults to {projectRoot}/.nano-agent
+   * @param basePath - Base directory for this store (e.g., data/agents/adam)
    */
-  constructor(basePath?: string) {
-    this.basePath = basePath ?? path.join(findProjectRoot(), SESSIONS_DIR_NAME);
+  constructor(basePath: string) {
+    if (!basePath) {
+      throw new Error('basePath is required');
+    }
+    this.basePath = basePath;
     this.sessionsDir = path.join(this.basePath, SESSIONS_SUBDIR);
     this.indexPath = path.join(this.basePath, INDEX_FILE);
   }

@@ -1,20 +1,27 @@
 import { randomUUID } from 'node:crypto';
 import { SessionStore } from './store.js';
 import type { Session, SessionMeta, CreateSessionOptions } from './types.js';
-import type { AgentId } from '../agent-config/types.js';
 import type { Message } from '../schema/index.js';
 
 /**
  * Manages session CRUD operations with metadata tracking.
  *
- * Each session is bound to a specific agent via agentId.
- * Sessions are organized by agent - switching agents means switching session lists.
+ * Each SessionManager instance is bound to a specific agent's SessionStore.
+ * The agentId is stored in each session but is determined by which store is used.
  */
 export class SessionManager {
   private store: SessionStore;
+  private agentId: string;
 
-  constructor(store?: SessionStore) {
-    this.store = store ?? new SessionStore();
+  /**
+   * Creates a SessionManager instance.
+   *
+   * @param store - The SessionStore instance to use (determines the agent)
+   * @param agentId - The agent ID this manager belongs to
+   */
+  constructor(store: SessionStore, agentId: string) {
+    this.store = store;
+    this.agentId = agentId;
   }
 
   /**
@@ -27,27 +34,16 @@ export class SessionManager {
   }
 
   /**
-   * Returns sessions for a specific agent.
+   * Creates a new session for this agent.
    *
-   * @param agentId - The agent ID to filter sessions by
-   * @returns Array of session metadata for the specified agent
-   */
-  listSessionsByAgent(agentId: AgentId): SessionMeta[] {
-    return this.listSessions().filter((s) => s.agentId === agentId);
-  }
-
-  /**
-   * Creates a new session bound to a specific agent.
-   *
-   * @param agentId - The agent ID this session belongs to (required)
-   * @param options - Optional creation options (title)
+   * @param options - Optional creation options (title, workspacePath, modelId)
    * @returns The newly created session
    */
-  createSession(agentId: AgentId, options?: CreateSessionOptions): Session {
+  createSession(options?: CreateSessionOptions): Session {
     const now = Date.now();
     const session: Session = {
       id: randomUUID(),
-      agentId,
+      agentId: this.agentId,
       title: options?.title ?? 'New Session',
       createdAt: now,
       updatedAt: now,
@@ -128,28 +124,6 @@ export class SessionManager {
     }
 
     session.title = title;
-    session.updatedAt = Date.now();
-
-    this.store.saveSession(session);
-    this.updateIndexEntry(session);
-
-    return session;
-  }
-
-  /**
-   * Updates the session's agent binding.
-   *
-   * @param id - Session identifier
-   * @param agentId - New agent ID
-   * @returns Updated session or null if session not found
-   */
-  updateAgentId(id: string, agentId: AgentId): Session | null {
-    const session = this.store.loadSession(id);
-    if (!session) {
-      return null;
-    }
-
-    session.agentId = agentId;
     session.updatedAt = Date.now();
 
     this.store.saveSession(session);

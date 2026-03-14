@@ -1,65 +1,33 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { SessionManager } from '../session/index.js';
+import type { SessionManager } from '../session/index.js';
 import { getAgentConfig } from '../agent-config/store.js';
 import { Logger } from '../util/logger.js';
 
-let globalSessionManager: SessionManager | null = null;
-
 /**
- * Gets the global SessionManager instance.
- *
- * @returns SessionManager instance or null if not initialized
- */
-export function getGlobalSessionManager(): SessionManager | null {
-  return globalSessionManager;
-}
-
-/**
- * Initializes the global SessionManager instance.
- */
-export function initGlobalSessionManager(): void {
-  if (!globalSessionManager) {
-    globalSessionManager = new SessionManager();
-    Logger.log('SESSION', 'SessionManager initialized');
-  }
-}
-
-/**
- * Creates the session router
+ * Creates the session router for a specific agent.
  * Provides REST API for session CRUD:
- * - GET /api/sessions - List all sessions (optionally filtered by agentId)
- * - POST /api/sessions - Create a new session (requires agentId)
- * - GET /api/sessions/:id - Get a specific session
- * - PUT /api/sessions/:id - Update a session (supports workspacePath)
- * - DELETE /api/sessions/:id - Delete a session
+ * - GET /agents/:agentId/sessions - List sessions for this agent
+ * - POST /agents/:agentId/sessions - Create a new session
+ * - GET /agents/:agentId/sessions/:id - Get a specific session
+ * - PUT /agents/:agentId/sessions/:id - Update a session
+ * - DELETE /agents/:agentId/sessions/:id - Delete a session
  *
+ * @param manager - The SessionManager instance bound to a specific agent
  * @returns Express Router with session endpoints
  */
-export function createSessionRouter(): Router {
-  initGlobalSessionManager();
-
+export function createSessionRouter(manager: SessionManager): Router {
   const router = Router();
 
   /**
-   * List all sessions or sessions for a specific agent.
+   * List all sessions for this agent.
    * Returns session metadata sorted by most recently updated.
    *
-   * @route GET /api/sessions
-   * @query agentId - Optional agent ID to filter sessions
+   * @route GET /agents/:agentId/sessions
    */
   router.get('/', (req: Request, res: Response) => {
     try {
-      const manager = getGlobalSessionManager();
-      if (!manager) {
-        res.status(500).json({ error: 'SessionManager not initialized' });
-        return;
-      }
-
-      const agentId = req.query['agentId'] as string | undefined;
-      const sessions = agentId
-        ? manager.listSessionsByAgent(agentId)
-        : manager.listSessions();
+      const sessions = manager.listSessions();
       res.json({ sessions });
     } catch (error) {
       Logger.log('SESSION', 'Error listing sessions', error);
@@ -70,35 +38,24 @@ export function createSessionRouter(): Router {
   });
 
   /**
-   * Create a new session bound to a specific agent.
+   * Create a new session for this agent.
    *
-   * @route POST /api/sessions
-   * @body { agentId: string, title?: string } - Agent ID is required
+   * @route POST /agents/:agentId/sessions
+   * @body { title?: string, workspacePath?: string, modelId?: string }
    */
   router.post('/', (req: Request, res: Response) => {
     try {
-      const manager = getGlobalSessionManager();
-      if (!manager) {
-        res.status(500).json({ error: 'SessionManager not initialized' });
-        return;
-      }
-
-      const {
-        agentId,
-        title,
-        workspacePath: customWorkspace,
-        modelId,
-      } = req.body;
-      if (!agentId) {
-        res.status(400).json({ error: 'agentId is required' });
-        return;
-      }
+      const agentIdParam = req.params['agentId'];
+      const agentId = Array.isArray(agentIdParam)
+        ? agentIdParam[0]
+        : agentIdParam;
+      const { title, workspacePath: customWorkspace, modelId } = req.body;
 
       const agentConfig = getAgentConfig(agentId);
       const workspacePath =
         customWorkspace ?? agentConfig?.defaultWorkspacePath;
 
-      const session = manager.createSession(agentId, {
+      const session = manager.createSession({
         title,
         workspacePath,
         modelId,
@@ -121,16 +78,10 @@ export function createSessionRouter(): Router {
    * Get a specific session by ID.
    * Returns complete session including all messages.
    *
-   * @route GET /api/sessions/:id
+   * @route GET /agents/:agentId/sessions/:id
    */
   router.get('/:id', (req: Request, res: Response) => {
     try {
-      const manager = getGlobalSessionManager();
-      if (!manager) {
-        res.status(500).json({ error: 'SessionManager not initialized' });
-        return;
-      }
-
       const id = Array.isArray(req.params['id'])
         ? req.params['id'][0]
         : req.params['id'];
@@ -153,16 +104,10 @@ export function createSessionRouter(): Router {
   /**
    * Delete a session by ID.
    *
-   * @route DELETE /api/sessions/:id
+   * @route DELETE /agents/:agentId/sessions/:id
    */
   router.delete('/:id', (req: Request, res: Response) => {
     try {
-      const manager = getGlobalSessionManager();
-      if (!manager) {
-        res.status(500).json({ error: 'SessionManager not initialized' });
-        return;
-      }
-
       const id = Array.isArray(req.params['id'])
         ? req.params['id'][0]
         : req.params['id'];
@@ -185,19 +130,13 @@ export function createSessionRouter(): Router {
 
   /**
    * Update a session by ID.
-   * Currently supports updating workspacePath.
+   * Supports updating workspacePath, title, and modelId.
    *
-   * @route PUT /api/sessions/:id
-   * @body { workspacePath?: string } - Fields to update
+   * @route PUT /agents/:agentId/sessions/:id
+   * @body { workspacePath?: string, title?: string, modelId?: string }
    */
   router.put('/:id', (req: Request, res: Response) => {
     try {
-      const manager = getGlobalSessionManager();
-      if (!manager) {
-        res.status(500).json({ error: 'SessionManager not initialized' });
-        return;
-      }
-
       const id = Array.isArray(req.params['id'])
         ? req.params['id'][0]
         : req.params['id'];

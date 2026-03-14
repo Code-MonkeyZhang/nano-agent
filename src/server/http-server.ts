@@ -12,6 +12,7 @@ import { createBuiltinToolRouter } from './builtin-tool-router.js';
 import { createMcpRouter } from './mcp-router.js';
 import { createSkillRouter } from './skill-router.js';
 import { Logger } from '../util/logger.js';
+import type { SessionManager } from '../session/index.js';
 
 const app = express();
 
@@ -76,12 +77,26 @@ export function setGlobalAgent(agent: AgentCore): void {
   Logger.log('HTTP', 'Global agent set');
 }
 
+export type SessionManagersMap = Map<string, SessionManager>;
+
 /**
  * Setup OpenAI compatible routes and management APIs.
+ *
+ * @param sessionManagers - Map of agentId -> SessionManager for agent-specific session routes
  */
-export async function setupOpenAIRoutes(): Promise<void> {
-  app.use('/v1/chat', createChatRouter());
-  app.use('/api/sessions', createSessionRouter());
+export async function setupOpenAIRoutes(
+  sessionManagers?: SessionManagersMap
+): Promise<void> {
+  app.use('/v1/chat', createChatRouter(sessionManagers));
+
+  // Register session routes for each agent
+  if (sessionManagers) {
+    for (const [agentId, manager] of sessionManagers) {
+      app.use(`/api/agents/${agentId}/sessions`, createSessionRouter(manager));
+      Logger.log('HTTP', `Registered session router for agent: ${agentId}`);
+    }
+  }
+
   app.use('/api/config', createConfigRouter());
   app.use('/api/credentials', createCredentialRouter());
   app.use('/api/providers', createCredentialRouter());

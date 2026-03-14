@@ -8,7 +8,6 @@ import { SessionManager } from '../src/session/manager.js';
 import type { Session } from '../src/session/types.js';
 
 const TEST_AGENT_ID = 'adam';
-const TEST_AGENT_ID_2 = 'eve';
 
 describe('SessionManager', () => {
   let manager: SessionManager;
@@ -18,7 +17,7 @@ describe('SessionManager', () => {
   beforeEach(() => {
     testDir = path.join(os.tmpdir(), `nano-agent-test-${randomUUID()}`);
     store = new SessionStore(testDir);
-    manager = new SessionManager(store);
+    manager = new SessionManager(store, TEST_AGENT_ID);
   });
 
   afterEach(() => {
@@ -33,9 +32,9 @@ describe('SessionManager', () => {
     });
 
     it('should return sessions sorted by updatedAt descending', () => {
-      manager.createSession(TEST_AGENT_ID, { title: 'Session 1' });
-      const session2 = manager.createSession(TEST_AGENT_ID, { title: 'Session 2' });
-      manager.createSession(TEST_AGENT_ID, { title: 'Session 3' });
+      manager.createSession({ title: 'Session 1' });
+      const session2 = manager.createSession({ title: 'Session 2' });
+      manager.createSession({ title: 'Session 3' });
 
       manager.appendMessage(session2.id, { role: 'user', content: 'Hello' });
 
@@ -45,30 +44,9 @@ describe('SessionManager', () => {
     });
   });
 
-  describe('listSessionsByAgent', () => {
-    it('should return only sessions for the specified agent', () => {
-      manager.createSession(TEST_AGENT_ID, { title: 'Adam Session 1' });
-      manager.createSession(TEST_AGENT_ID, { title: 'Adam Session 2' });
-      manager.createSession(TEST_AGENT_ID_2, { title: 'Eve Session 1' });
-
-      const adamSessions = manager.listSessionsByAgent(TEST_AGENT_ID);
-      expect(adamSessions.length).toBe(2);
-      expect(adamSessions.every((s) => s.agentId === TEST_AGENT_ID)).toBe(true);
-
-      const eveSessions = manager.listSessionsByAgent(TEST_AGENT_ID_2);
-      expect(eveSessions.length).toBe(1);
-      expect(eveSessions[0].agentId).toBe(TEST_AGENT_ID_2);
-    });
-
-    it('should return empty array for agent with no sessions', () => {
-      manager.createSession(TEST_AGENT_ID, { title: 'Session' });
-      expect(manager.listSessionsByAgent('unknown-agent')).toEqual([]);
-    });
-  });
-
   describe('createSession', () => {
-    it('should create a session with agentId', () => {
-      const session = manager.createSession(TEST_AGENT_ID, { title: 'Test Session' });
+    it('should create a session with agentId from manager', () => {
+      const session = manager.createSession({ title: 'Test Session' });
 
       expect(session.id).toBeDefined();
       expect(session.agentId).toBe(TEST_AGENT_ID);
@@ -79,20 +57,20 @@ describe('SessionManager', () => {
     });
 
     it('should create a session with default title', () => {
-      const session = manager.createSession(TEST_AGENT_ID);
+      const session = manager.createSession();
 
       expect(session.title).toBe('New Session');
     });
 
     it('should persist session to storage', () => {
-      const session = manager.createSession(TEST_AGENT_ID, { title: 'Persisted' });
+      const session = manager.createSession({ title: 'Persisted' });
 
       const loaded = store.loadSession(session.id);
       expect(loaded).toEqual(session);
     });
 
     it('should add session to index with agentId', () => {
-      manager.createSession(TEST_AGENT_ID, { title: 'Indexed' });
+      manager.createSession({ title: 'Indexed' });
 
       const index = store.loadIndex();
       expect(index.length).toBe(1);
@@ -107,7 +85,7 @@ describe('SessionManager', () => {
     });
 
     it('should return complete session with messages', () => {
-      const created = manager.createSession(TEST_AGENT_ID, { title: 'Test' });
+      const created = manager.createSession({ title: 'Test' });
       manager.appendMessage(created.id, { role: 'user', content: 'Hello' });
       manager.appendMessage(created.id, { role: 'assistant', content: 'Hi' });
 
@@ -127,7 +105,7 @@ describe('SessionManager', () => {
     });
 
     it('should delete session and remove from index', () => {
-      const session = manager.createSession(TEST_AGENT_ID, { title: 'To Delete' });
+      const session = manager.createSession({ title: 'To Delete' });
 
       expect(manager.deleteSession(session.id)).toBe(true);
       expect(manager.getSession(session.id)).toBeNull();
@@ -145,7 +123,7 @@ describe('SessionManager', () => {
     });
 
     it('should append message and update metadata', () => {
-      const session = manager.createSession(TEST_AGENT_ID, { title: 'Test' });
+      const session = manager.createSession({ title: 'Test' });
       const beforeUpdate = session.updatedAt;
 
       const updated = manager.appendMessage(session.id, {
@@ -159,7 +137,7 @@ describe('SessionManager', () => {
     });
 
     it('should update index with new metadata', () => {
-      const session = manager.createSession(TEST_AGENT_ID, { title: 'Test' });
+      const session = manager.createSession({ title: 'Test' });
       manager.appendMessage(session.id, { role: 'user', content: 'Hello' });
 
       const index = store.loadIndex();
@@ -168,7 +146,7 @@ describe('SessionManager', () => {
     });
 
     it('should persist messages to session file', () => {
-      const session = manager.createSession(TEST_AGENT_ID, { title: 'Test' });
+      const session = manager.createSession({ title: 'Test' });
       manager.appendMessage(session.id, { role: 'user', content: 'Hello' });
 
       const loaded = store.loadSession(session.id);
@@ -182,7 +160,7 @@ describe('SessionManager', () => {
     });
 
     it('should update title and updatedAt', () => {
-      const session = manager.createSession(TEST_AGENT_ID, { title: 'Old Title' });
+      const session = manager.createSession({ title: 'Old Title' });
       const beforeUpdate = session.updatedAt;
 
       const updated = manager.updateTitle(session.id, 'New Title');
@@ -192,7 +170,7 @@ describe('SessionManager', () => {
     });
 
     it('should update index with new title', () => {
-      const session = manager.createSession(TEST_AGENT_ID, { title: 'Old' });
+      const session = manager.createSession({ title: 'Old' });
 
       manager.updateTitle(session.id, 'New');
 
@@ -202,35 +180,9 @@ describe('SessionManager', () => {
     });
   });
 
-  describe('updateAgentId', () => {
-    it('should return null for non-existent session', () => {
-      expect(manager.updateAgentId('non-existent', TEST_AGENT_ID_2)).toBeNull();
-    });
-
-    it('should update agentId and updatedAt', () => {
-      const session = manager.createSession(TEST_AGENT_ID, { title: 'Test' });
-      const beforeUpdate = session.updatedAt;
-
-      const updated = manager.updateAgentId(session.id, TEST_AGENT_ID_2);
-
-      expect(updated?.agentId).toBe(TEST_AGENT_ID_2);
-      expect(updated?.updatedAt).toBeGreaterThanOrEqual(beforeUpdate);
-    });
-
-    it('should update index with new agentId', () => {
-      const session = manager.createSession(TEST_AGENT_ID, { title: 'Test' });
-
-      manager.updateAgentId(session.id, TEST_AGENT_ID_2);
-
-      const index = store.loadIndex();
-      const indexEntry = index.find((s) => s.id === session.id);
-      expect(indexEntry?.agentId).toBe(TEST_AGENT_ID_2);
-    });
-  });
-
   describe('integration', () => {
     it('should handle full session lifecycle with agent binding', () => {
-      const session = manager.createSession(TEST_AGENT_ID, { title: 'My Chat' });
+      const session = manager.createSession({ title: 'My Chat' });
       expect(session.agentId).toBe(TEST_AGENT_ID);
       expect(session.messageCount).toBe(0);
 
@@ -258,9 +210,8 @@ describe('SessionManager', () => {
     it('should maintain consistency between index and sessions', () => {
       const sessions: Session[] = [];
 
-      for (let i = 0; i < 5; i++) {
-        const agentId = i % 2 === 0 ? TEST_AGENT_ID : TEST_AGENT_ID_2;
-        sessions.push(manager.createSession(agentId, { title: `Session ${i}` }));
+      for (let i = 0; i < 3; i++) {
+        sessions.push(manager.createSession({ title: `Session ${i}` }));
       }
 
       manager.appendMessage(sessions[0].id, { role: 'user', content: 'A' });
@@ -268,7 +219,7 @@ describe('SessionManager', () => {
       manager.appendMessage(sessions[2].id, { role: 'user', content: 'C' });
 
       const index = manager.listSessions();
-      expect(index.length).toBe(5);
+      expect(index.length).toBe(3);
 
       for (const meta of index) {
         const session = manager.getSession(meta.id);
@@ -279,23 +230,9 @@ describe('SessionManager', () => {
       }
 
       manager.deleteSession(sessions[1].id);
-      manager.deleteSession(sessions[3].id);
 
       const remainingIndex = manager.listSessions();
-      expect(remainingIndex.length).toBe(3);
-    });
-
-    it('should correctly filter sessions by agent', () => {
-      manager.createSession(TEST_AGENT_ID, { title: 'Adam 1' });
-      manager.createSession(TEST_AGENT_ID_2, { title: 'Eve 1' });
-      manager.createSession(TEST_AGENT_ID, { title: 'Adam 2' });
-      manager.createSession(TEST_AGENT_ID_2, { title: 'Eve 2' });
-
-      const adamSessions = manager.listSessionsByAgent(TEST_AGENT_ID);
-      const eveSessions = manager.listSessionsByAgent(TEST_AGENT_ID_2);
-
-      expect(adamSessions.length).toBe(2);
-      expect(eveSessions.length).toBe(2);
+      expect(remainingIndex.length).toBe(2);
     });
   });
 });

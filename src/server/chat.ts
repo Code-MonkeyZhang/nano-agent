@@ -10,11 +10,11 @@ import {
   createGlobalAbortController,
   clearGlobalAbortController,
 } from './http-server.js';
-import { getGlobalSessionManager } from './sessions.js';
 import { createAgent } from '../agent-factory/index.js';
 import { getAgentConfig } from '../agent-config/store.js';
 import type { Message } from '../schema/index.js';
 import type { AgentId } from '../agent-config/types.js';
+import type { SessionManager } from '../session/index.js';
 
 import * as path from 'node:path';
 
@@ -66,17 +66,18 @@ function generateTitle(messages: Message[]): string {
 /**
  * Creates an OpenAI-compatible chat router.
  *
- * @param config - The agent configuration.
- * @param workspaceDir - The workspace directory.
+ * @param sessionManagers - Map of agentId -> SessionManager
  * @returns Express Router with `/completions` endpoint.
  */
-export function createChatRouter(): Router {
+export function createChatRouter(
+  sessionManagers?: Map<string, SessionManager>
+): Router {
   const router = Router();
 
   /**
    * OpenAI 兼容的聊天补全端点
    *
-   * 接收 OpenAI 格式的聊天补全请求
+   * 接收 Openai 格式的聊天补全请求
    * - 验证请求消息格式
    * - 将请求转换为内部格式
    * - 调用 AgentCore 处理消息
@@ -94,8 +95,27 @@ export function createChatRouter(): Router {
       const { messages: requestMessages } = convertOpenAIRequest(body);
       const sessionId = body.sessionId;
 
-      const sessionManager = getGlobalSessionManager();
+      // Get session manager based on agentId from session or default to 'adam'
       let agentId: AgentId = 'adam';
+      let sessionManager: SessionManager | undefined;
+
+      if (sessionId && sessionManagers) {
+        // Try to find the session in any agent's session manager
+        for (const [, manager] of sessionManagers) {
+          const session = manager.getSession(sessionId);
+          if (session) {
+            agentId = session.agentId;
+            sessionManager = manager;
+            break;
+          }
+        }
+      }
+
+      // If not found by sessionId, use default agent's session manager
+      if (!sessionManager && sessionManagers) {
+        sessionManager = sessionManagers.get(agentId);
+      }
+
       let isNewSession = false;
       let workspacePath: string | undefined;
       let sessionModelId: string | undefined;
@@ -104,6 +124,10 @@ export function createChatRouter(): Router {
         const session = sessionManager.getSession(sessionId);
         if (session) {
           agentId = session.agentId;
+          // Re-fetch session manager for the correct agent
+          if (sessionManagers) {
+            sessionManager = sessionManagers.get(agentId);
+          }
           isNewSession = session.messageCount === 0;
           workspacePath = session.workspacePath;
           sessionModelId = session.modelId;

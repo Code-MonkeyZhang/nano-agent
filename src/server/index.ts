@@ -31,6 +31,9 @@ import {
   setGlobalRetryConfig,
 } from '../agent-factory/index.js';
 import { setMcpTimeoutConfig } from '../tools/index.js';
+import { SessionStore } from '../session/store.js';
+import { SessionManager } from '../session/manager.js';
+import type { SessionManagersMap } from './http-server.js';
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -223,13 +226,26 @@ class ServerManager {
         throw new Error('No agent configs found');
       }
 
+      // Create SessionStore and SessionManager for each agent
+      const sessionManagers: SessionManagersMap = new Map();
+      for (const agentConfig of agentConfigs) {
+        const agentBasePath = path.join(DATA_DIR, 'agents', agentConfig.id);
+        const sessionStore = new SessionStore(agentBasePath);
+        const sessionManager = new SessionManager(sessionStore, agentConfig.id);
+        sessionManagers.set(agentConfig.id, sessionManager);
+        Logger.log(
+          'SERVER',
+          `Initialized session manager for agent: ${agentConfig.id}`
+        );
+      }
+
       const defaultAgent = agentConfigs[0];
       const agentCore = await createAgent(defaultAgent.id, workspaceDir);
       setGlobalAgent(agentCore);
 
       Logger.log('SERVER', `Agent '${defaultAgent.name}' created`);
 
-      await setupOpenAIRoutes();
+      await setupOpenAIRoutes(sessionManagers);
       Logger.log('SERVER', 'OpenAI routes configured');
 
       initWebSocket();
