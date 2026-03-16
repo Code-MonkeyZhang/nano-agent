@@ -401,7 +401,18 @@ export function createChatRouter(
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (
+      if (errorMessage.includes('No credential found')) {
+        const providerMatch = errorMessage.match(/provider '(\w+)'/);
+        const provider = providerMatch ? providerMatch[1] : 'unknown';
+        res.status(401).json({
+          error: {
+            code: 'MISSING_CREDENTIALS',
+            message: `API key not configured for provider '${provider}'. Please configure your API key in Settings.`,
+            type: 'authentication_error',
+            provider,
+          },
+        });
+      } else if (
         errorMessage.includes('404') ||
         errorMessage.includes('page not found')
       ) {
@@ -413,7 +424,6 @@ export function createChatRouter(
           },
         });
       } else {
-        // Internal server error
         Logger.log('Chat API', `Error: ${errorMessage}`, error);
         if (!res.headersSent) {
           res.status(500).json({

@@ -1,3 +1,7 @@
+/**
+ * Entry point for local Nano-Agent server.
+ * This will be triggered when Desktop started.
+ */
 import { getServerManager } from './index.js';
 
 async function main() {

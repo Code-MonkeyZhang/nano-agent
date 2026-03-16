@@ -2,11 +2,7 @@ import * as net from 'node:net';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  httpServer,
-  setupOpenAIRoutes,
-  setGlobalAgent,
-} from './http-server.js';
+import { httpServer, setupOpenAIRoutes } from './http-server.js';
 import { initWebSocket, shutdownWebSocket } from './websocket-server.js';
 import {
   startTunnel,
@@ -26,7 +22,6 @@ import {
   listAgentConfigs,
 } from '../agent-config/store.js';
 import {
-  createAgent,
   setDefaultWorkspaceDir,
   setGlobalRetryConfig,
 } from '../agent-factory/index.js';
@@ -178,16 +173,35 @@ class ServerManager {
     }
 
     let port: number;
-    try {
-      port = await this.findAvailablePort(this.PORT_START);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'No available ports';
-      this.notifyStatus({
-        status: 'error',
-        error: errorMessage,
-      });
-      return { success: false, error: errorMessage };
+    const envPort = process.env['PORT'];
+
+    if (envPort) {
+      const parsedPort = parseInt(envPort, 10);
+      if (isNaN(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
+        const errorMessage = `Invalid PORT environment variable: ${envPort}`;
+        this.notifyStatus({
+          status: 'error',
+          error: errorMessage,
+        });
+        return { success: false, error: errorMessage };
+      }
+      port = parsedPort;
+      Logger.log(
+        'SERVER',
+        `Using port from PORT environment variable: ${port}`
+      );
+    } else {
+      try {
+        port = await this.findAvailablePort(this.PORT_START);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'No available ports';
+        this.notifyStatus({
+          status: 'error',
+          error: errorMessage,
+        });
+        return { success: false, error: errorMessage };
+      }
     }
 
     this.currentPort = port;
@@ -239,12 +253,6 @@ class ServerManager {
         );
       }
 
-      const defaultAgent = agentConfigs[0];
-      const agentCore = await createAgent(defaultAgent.id, workspaceDir);
-      setGlobalAgent(agentCore);
-
-      Logger.log('SERVER', `Agent '${defaultAgent.name}' created`);
-
       await setupOpenAIRoutes(sessionManagers);
       Logger.log('SERVER', 'OpenAI routes configured');
 
@@ -285,20 +293,17 @@ class ServerManager {
       const err = error as NodeJS.ErrnoException;
 
       if (err.code === 'EADDRINUSE') {
-        Logger.log('SERVER', `Port ${port} still in use, trying ${port + 1}`);
-        this.cleanupOnError();
+        const errorMessage = envPort
+          ? `Port ${port} is already in use. Cannot start server on specified port ${port}.`
+          : `Port ${port} is already in use`;
 
-        const nextPort = port + 1;
-        if (nextPort <= this.PORT_END) {
-          return this.start(options);
-        } else {
-          const errorMessage = `All ports in range ${this.PORT_START}-${this.PORT_END} are occupied`;
-          this.notifyStatus({
-            status: 'error',
-            error: errorMessage,
-          });
-          return { success: false, error: errorMessage };
-        }
+        Logger.log('SERVER', errorMessage);
+        this.cleanupOnError();
+        this.notifyStatus({
+          status: 'error',
+          error: errorMessage,
+        });
+        return { success: false, error: errorMessage };
       }
 
       this.cleanupOnError();

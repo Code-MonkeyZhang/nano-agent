@@ -50,8 +50,10 @@ describe('AgentFactory', () => {
       mcpIds: [],
       skillIds: [],
     };
+    const testAgentDir = path.join(TEST_DATA_DIR, 'agents', 'test-agent');
+    ensureTestDir(testAgentDir);
     fs.writeFileSync(
-      path.join(TEST_DATA_DIR, 'agents', 'test-agent.json'),
+      path.join(testAgentDir, 'config.json'),
       JSON.stringify(testAgentConfig, null, 2)
     );
 
@@ -97,8 +99,10 @@ describe('AgentFactory', () => {
         mcpIds: [],
         skillIds: [],
       };
+      const agentDir = path.join(TEST_DATA_DIR, 'agents', 'no-credential-agent');
+      ensureTestDir(agentDir);
       fs.writeFileSync(
-        path.join(TEST_DATA_DIR, 'agents', 'no-credential-agent.json'),
+        path.join(agentDir, 'config.json'),
         JSON.stringify(noCredentialConfig, null, 2)
       );
       initAgentConfigStore(path.join(TEST_DATA_DIR, 'agents'));
@@ -119,14 +123,16 @@ describe('AgentFactory', () => {
         mcpIds: [],
         skillIds: [],
       };
+      const agentDir = path.join(TEST_DATA_DIR, 'agents', 'invalid-model-agent');
+      ensureTestDir(agentDir);
       fs.writeFileSync(
-        path.join(TEST_DATA_DIR, 'agents', 'invalid-model-agent.json'),
+        path.join(agentDir, 'config.json'),
         JSON.stringify(invalidModelConfig, null, 2)
       );
       initAgentConfigStore(path.join(TEST_DATA_DIR, 'agents'));
 
       await expect(createAgent('invalid-model-agent')).rejects.toThrow(
-        "Model not found: openai/non-existent-model"
+        'Model not found: openai/non-existent-model'
       );
     });
 

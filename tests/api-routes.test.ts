@@ -534,8 +534,6 @@ describe('Phase 8: HTTP API Tests', () => {
   });
 
   describe('8.6 Session Management API', () => {
-    let testAgentId: string;
-
     beforeEach(async () => {
       await fetch(`${BASE_URL}/api/credentials/openai`, {
         method: 'PUT',
@@ -543,7 +541,7 @@ describe('Phase 8: HTTP API Tests', () => {
         body: JSON.stringify({ apiKey: 'test-key' }),
       });
 
-      const agentResponse = await fetch(`${BASE_URL}/api/agents`, {
+      await fetch(`${BASE_URL}/api/agents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -558,8 +556,6 @@ describe('Phase 8: HTTP API Tests', () => {
           defaultWorkspacePath: '/tmp/test-workspace-default',
         }),
       });
-      const agentData = (await agentResponse.json()) as { agent: { id: string } };
-      testAgentId = agentData.agent.id;
     });
 
     describe('POST /api/agents/adam/sessions', () => {

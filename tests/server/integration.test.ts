@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   httpServer,
   setupOpenAIRoutes,
-  setGlobalAgent,
 } from '../../src/server/http-server.js';
 import {
   initWebSocket,
@@ -20,7 +19,7 @@ import {
   listAgentConfigs,
   updateAgentConfig,
 } from '../../src/agent-config/store.js';
-import { createAgent, setDefaultWorkspaceDir } from '../../src/agent-factory/index.js';
+import { setDefaultWorkspaceDir } from '../../src/agent-factory/index.js';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as net from 'node:net';
@@ -136,9 +135,6 @@ maybeDescribe('Integration Tests', () => {
     if (fs.existsSync(mcpConfigPath)) {
       await initMcpPool(mcpConfigPath);
     }
-
-    const agentCore = await createAgent(defaultAgent.id, testWorkspaceDir);
-    setGlobalAgent(agentCore);
 
     await setupOpenAIRoutes();
     initWebSocket();

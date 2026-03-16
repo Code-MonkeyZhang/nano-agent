@@ -2,7 +2,6 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import { createServer as createHttpServer } from 'http';
 import cors from 'cors';
-import { AgentCore } from '../agent.js';
 import { createChatRouter } from './chat.js';
 import { createSessionRouter } from './sessions.js';
 import { createConfigRouter } from './config-router.js';
@@ -16,12 +15,7 @@ import type { SessionManager } from '../session/index.js';
 
 const app = express();
 
-let globalAgent: AgentCore | null = null;
 let globalAbortController: AbortController | null = null;
-
-export function getGlobalAgent(): AgentCore | null {
-  return globalAgent;
-}
 
 export function getGlobalAbortController(): AbortController | null {
   return globalAbortController;
@@ -67,15 +61,6 @@ app.use((req, _res, next) => {
   Logger.log('HTTP', `${req.method} ${req.path}`);
   next();
 });
-
-/**
- * Set the global agent instance.
- * Called during server startup after creating agent via AgentFactory.
- */
-export function setGlobalAgent(agent: AgentCore): void {
-  globalAgent = agent;
-  Logger.log('HTTP', 'Global agent set');
-}
 
 export type SessionManagersMap = Map<string, SessionManager>;
 
