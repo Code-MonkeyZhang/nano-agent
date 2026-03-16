@@ -22,6 +22,8 @@ export interface AgentConfig {
   mcpIds: string[];
   skillIds: string[];
   defaultWorkspacePath?: string;
+  /** Avatar identifier: "avatar.png" for uploaded, "preset:avatar_X" for preset */
+  avatar?: string;
 }
 
 /**

@@ -2,6 +2,8 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import { createServer as createHttpServer } from 'http';
 import cors from 'cors';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createChatRouter } from './chat.js';
 import { createSessionRouter } from './sessions.js';
 import { createConfigRouter } from './config-router.js';
@@ -10,8 +12,12 @@ import { createAgentRouter } from './agent-router.js';
 import { createBuiltinToolRouter } from './builtin-tool-router.js';
 import { createMcpRouter } from './mcp-router.js';
 import { createSkillRouter } from './skill-router.js';
+import { createAvatarRouter } from './avatar-router.js';
 import { Logger } from '../util/logger.js';
 import type { SessionManager } from '../session/index.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PRESETS_DIR = path.resolve(__dirname, '..', '..', 'resources', 'avatars');
 
 const app = express();
 
@@ -90,6 +96,8 @@ export async function setupOpenAIRoutes(
   app.use('/api/builtin-tools', createBuiltinToolRouter());
   app.use('/api/mcp', createMcpRouter());
   app.use('/api/skills', createSkillRouter());
+  app.use('/api', createAvatarRouter());
+  app.use('/presets/avatars', express.static(PRESETS_DIR));
   Logger.log('HTTP', 'Routes configured');
 }
 
