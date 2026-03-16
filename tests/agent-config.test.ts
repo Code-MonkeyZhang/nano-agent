@@ -46,8 +46,10 @@ describe('AgentConfigStore', () => {
         skillIds: [],
       };
 
+      const agentDir = path.join(tempDir, 'custom-agent');
+      fs.mkdirSync(agentDir, { recursive: true });
       fs.writeFileSync(
-        path.join(tempDir, 'custom-agent.json'),
+        path.join(agentDir, 'config.json'),
         JSON.stringify(existingAgent)
       );
 
@@ -71,8 +73,10 @@ describe('AgentConfigStore', () => {
         skillIds: [],
       };
 
+      const agentDir = path.join(tempDir, 'existing');
+      fs.mkdirSync(agentDir, { recursive: true });
       fs.writeFileSync(
-        path.join(tempDir, 'existing.json'),
+        path.join(agentDir, 'config.json'),
         JSON.stringify(customAgent)
       );
 
@@ -155,7 +159,7 @@ describe('AgentConfigStore', () => {
         skillIds: [],
       });
 
-      const filePath = path.join(tempDir, 'persisted-agent.json');
+      const filePath = path.join(tempDir, 'persisted-agent', 'config.json');
       expect(fs.existsSync(filePath)).toBe(true);
 
       const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -309,12 +313,12 @@ describe('AgentConfigStore', () => {
         skillIds: [],
       });
 
-      const filePath = path.join(tempDir, 'file-delete.json');
-      expect(fs.existsSync(filePath)).toBe(true);
+      const agentDir = path.join(tempDir, 'file-delete');
+      expect(fs.existsSync(agentDir)).toBe(true);
 
       deleteAgentConfig('file-delete');
 
-      expect(fs.existsSync(filePath)).toBe(false);
+      expect(fs.existsSync(agentDir)).toBe(false);
     });
   });
 
@@ -352,7 +356,7 @@ describe('AgentConfigStore', () => {
         skillIds: [],
       });
 
-      const filePath = path.join(tempDir, 'reload-test.json');
+      const filePath = path.join(tempDir, 'reload-test', 'config.json');
       const modified = {
         id: 'reload-test',
         name: 'Modified Externally',
@@ -384,8 +388,8 @@ describe('AgentConfigStore', () => {
         skillIds: [],
       });
 
-      const filePath = path.join(tempDir, 'reload-delete.json');
-      fs.unlinkSync(filePath);
+      const agentDir = path.join(tempDir, 'reload-delete');
+      fs.rmSync(agentDir, { recursive: true, force: true });
 
       const reloaded = reloadAgentConfig('reload-delete');
 

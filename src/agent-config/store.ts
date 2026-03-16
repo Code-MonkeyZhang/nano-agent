@@ -16,24 +16,21 @@ function generateId(): AgentId {
   return randomUUID();
 }
 
-function ensureDataDir(): void {
-  if (!agentsDir) return;
-  if (!fs.existsSync(agentsDir)) {
-    fs.mkdirSync(agentsDir, { recursive: true });
-  }
-}
-
-function getAgentFilePath(id: AgentId): string {
+function getAgentDirPath(id: AgentId): string {
   if (!agentsDir) {
     throw new Error(
       'AgentConfigStore not initialized. Call initAgentConfigStore() first.'
     );
   }
-  return path.join(agentsDir, `${id}.json`);
+  return path.join(agentsDir, id);
+}
+
+function getAgentConfigPath(id: AgentId): string {
+  return path.join(getAgentDirPath(id), 'config.json');
 }
 
 function loadAgentFromFile(id: AgentId): AgentConfig | undefined {
-  const filePath = getAgentFilePath(id);
+  const filePath = getAgentConfigPath(id);
   if (!fs.existsSync(filePath)) {
     return undefined;
   }
@@ -42,15 +39,18 @@ function loadAgentFromFile(id: AgentId): AgentConfig | undefined {
 }
 
 function saveAgentToFile(config: AgentConfig): void {
-  ensureDataDir();
-  const filePath = getAgentFilePath(config.id);
+  const agentDir = getAgentDirPath(config.id);
+  if (!fs.existsSync(agentDir)) {
+    fs.mkdirSync(agentDir, { recursive: true });
+  }
+  const filePath = getAgentConfigPath(config.id);
   fs.writeFileSync(filePath, JSON.stringify(config, null, 2));
 }
 
 function deleteAgentFile(id: AgentId): void {
-  const filePath = getAgentFilePath(id);
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
+  const agentDir = getAgentDirPath(id);
+  if (fs.existsSync(agentDir)) {
+    fs.rmSync(agentDir, { recursive: true, force: true });
   }
 }
 
@@ -59,16 +59,18 @@ function loadAllFromDirectory(): void {
     return;
   }
 
-  const files = fs.readdirSync(agentsDir);
-  for (const file of files) {
-    if (file.endsWith('.json')) {
-      const filePath = path.join(agentsDir, file);
-      try {
-        const content = fs.readFileSync(filePath, 'utf8');
-        const config = JSON.parse(content) as AgentConfig;
-        agentConfigs.set(config.id, config);
-      } catch {
-        // Skip invalid files
+  const entries = fs.readdirSync(agentsDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      const configPath = path.join(agentsDir, entry.name, 'config.json');
+      if (fs.existsSync(configPath)) {
+        try {
+          const content = fs.readFileSync(configPath, 'utf8');
+          const config = JSON.parse(content) as AgentConfig;
+          agentConfigs.set(config.id, config);
+        } catch {
+          // Skip invalid files
+        }
       }
     }
   }
