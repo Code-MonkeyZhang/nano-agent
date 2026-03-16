@@ -49,7 +49,7 @@ function convertMessage(msg: OpenAIMessage): Message {
     case 'user':
       return {
         role: 'user',
-        content: msg.content as any,
+        content: msg.content ?? '',
       };
     case 'assistant': {
       const toolCalls: ToolCall[] | undefined = msg.tool_calls?.map((tc) => ({

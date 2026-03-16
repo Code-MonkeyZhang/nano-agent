@@ -2,6 +2,7 @@ import type { Tool } from '../tools/base.js';
 import type { SkillEntry } from '../skill-pool/types.js';
 import type { RetryConfig } from '../config.js';
 import type { Model, Api } from '@mariozechner/pi-ai';
+import type { AgentCore } from '../agent.js';
 
 /**
  * Configuration needed to run an agent.
@@ -28,5 +29,5 @@ export interface AgentRunConfig {
  */
 export interface CachedAgent {
   config: AgentRunConfig;
-  agentCore: unknown;
+  agentCore: AgentCore;
 }

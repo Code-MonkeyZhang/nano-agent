@@ -50,7 +50,7 @@ export class Logger {
     return this.mode;
   }
 
-  static log(category: string, message: string, data?: any) {
+  static log(category: string, message: string, data?: unknown) {
     if (!this.enabled) return;
 
     const now = new Date();
@@ -85,11 +85,13 @@ export class Logger {
     }
   }
 
-  static debug(category: string, message: string, data?: any) {
+  static debug(category: string, message: string, data?: unknown) {
     this.log(category, message, data);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static logLLMRequest(request: any) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const summary: any = {
       model: request.model,
       stream: request.stream,
@@ -103,7 +105,9 @@ export class Logger {
     this.log('LLM REQUEST', 'Request summary', summary);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static logLLMResponse(response: any) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const summary: any = {
       model: response.model,
     };
