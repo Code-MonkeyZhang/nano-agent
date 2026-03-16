@@ -19,11 +19,17 @@ import {
   createAgentConfig,
   updateAgentConfig,
   deleteAgentConfig,
+  getAgentDirPath,
 } from '../agent-config/index.js';
 import type { CreateAgentConfigInput } from '../agent-config/index.js';
 import { Logger } from '../util/logger.js';
+import type { SessionManagersMap } from './http-server.js';
+import { SessionStore } from '../session/store.js';
+import { SessionManager } from '../session/manager.js';
 
-export function createAgentRouter(): Router {
+export function createAgentRouter(
+  sessionManagers?: SessionManagersMap
+): Router {
   const router = Router();
 
   /**
@@ -95,6 +101,18 @@ export function createAgentRouter(): Router {
       }
 
       const agent = createAgentConfig(input);
+
+      if (sessionManagers) {
+        const agentBasePath = getAgentDirPath(agent.id);
+        const sessionStore = new SessionStore(agentBasePath);
+        const sessionManager = new SessionManager(sessionStore, agent.id);
+        sessionManagers.set(agent.id, sessionManager);
+        Logger.log(
+          'SERVER',
+          `Registered session manager for new agent: ${agent.id}`
+        );
+      }
+
       Logger.log('AGENT', `Created agent: ${agent.id}`);
       res.status(201).json({ agent });
     } catch (error) {
@@ -162,6 +180,15 @@ export function createAgentRouter(): Router {
       }
 
       deleteAgentConfig(id);
+
+      if (sessionManagers) {
+        sessionManagers.delete(id);
+        Logger.log(
+          'SERVER',
+          `Removed session manager for deleted agent: ${id}`
+        );
+      }
+
       Logger.log('AGENT', `Deleted agent: ${id}`);
       res.json({ success: true });
     } catch (error) {

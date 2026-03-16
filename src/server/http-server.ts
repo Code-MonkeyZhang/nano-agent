@@ -74,18 +74,19 @@ export async function setupOpenAIRoutes(
 ): Promise<void> {
   app.use('/v1/chat', createChatRouter(sessionManagers));
 
-  // Register session routes for each agent
+  // Register session routes dynamically for all agents
   if (sessionManagers) {
-    for (const [agentId, manager] of sessionManagers) {
-      app.use(`/api/agents/${agentId}/sessions`, createSessionRouter(manager));
-      Logger.log('HTTP', `Registered session router for agent: ${agentId}`);
-    }
+    app.use(
+      '/api/agents/:agentId/sessions',
+      createSessionRouter(sessionManagers)
+    );
+    Logger.log('HTTP', 'Registered dynamic session router for agents');
   }
 
   app.use('/api/config', createConfigRouter());
   app.use('/api/credentials', createCredentialRouter());
   app.use('/api/providers', createCredentialRouter());
-  app.use('/api/agents', createAgentRouter());
+  app.use('/api/agents', createAgentRouter(sessionManagers));
   app.use('/api/builtin-tools', createBuiltinToolRouter());
   app.use('/api/mcp', createMcpRouter());
   app.use('/api/skills', createSkillRouter());

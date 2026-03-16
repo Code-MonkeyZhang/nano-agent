@@ -4,8 +4,10 @@ import type { SessionManager } from '../session/index.js';
 import { getAgentConfig } from '../agent-config/store.js';
 import { Logger } from '../util/logger.js';
 
+import type { SessionManagersMap } from './http-server.js';
+
 /**
- * Creates the session router for a specific agent.
+ * Creates the session router for agents.
  * Provides REST API for session CRUD:
  * - GET /agents/:agentId/sessions - List sessions for this agent
  * - POST /agents/:agentId/sessions - Create a new session
@@ -13,11 +15,33 @@ import { Logger } from '../util/logger.js';
  * - PUT /agents/:agentId/sessions/:id - Update a session
  * - DELETE /agents/:agentId/sessions/:id - Delete a session
  *
- * @param manager - The SessionManager instance bound to a specific agent
+ * @param sessionManagers - Map of agentId -> SessionManager
  * @returns Express Router with session endpoints
  */
-export function createSessionRouter(manager: SessionManager): Router {
-  const router = Router();
+export function createSessionRouter(
+  sessionManagers: SessionManagersMap
+): Router {
+  const router = Router({ mergeParams: true });
+
+  // Helper to get manager for the current route
+  function getManager(req: Request, res: Response): SessionManager | null {
+    const agentIdParam = req.params['agentId'];
+    const agentId = Array.isArray(agentIdParam)
+      ? agentIdParam[0]
+      : agentIdParam;
+    if (!agentId) {
+      res.status(400).json({ error: 'Agent ID is required' });
+      return null;
+    }
+    const manager = sessionManagers.get(agentId);
+    if (!manager) {
+      res
+        .status(404)
+        .json({ error: `Session manager not found for agent: ${agentId}` });
+      return null;
+    }
+    return manager;
+  }
 
   /**
    * List all sessions for this agent.
@@ -27,6 +51,8 @@ export function createSessionRouter(manager: SessionManager): Router {
    */
   router.get('/', (req: Request, res: Response) => {
     try {
+      const manager = getManager(req, res);
+      if (!manager) return;
       const sessions = manager.listSessions();
       res.json({ sessions });
     } catch (error) {
@@ -45,6 +71,8 @@ export function createSessionRouter(manager: SessionManager): Router {
    */
   router.post('/', (req: Request, res: Response) => {
     try {
+      const manager = getManager(req, res);
+      if (!manager) return;
       const agentIdParam = req.params['agentId'];
       const agentId = Array.isArray(agentIdParam)
         ? agentIdParam[0]
@@ -82,6 +110,8 @@ export function createSessionRouter(manager: SessionManager): Router {
    */
   router.get('/:id', (req: Request, res: Response) => {
     try {
+      const manager = getManager(req, res);
+      if (!manager) return;
       const id = Array.isArray(req.params['id'])
         ? req.params['id'][0]
         : req.params['id'];
@@ -108,6 +138,8 @@ export function createSessionRouter(manager: SessionManager): Router {
    */
   router.delete('/:id', (req: Request, res: Response) => {
     try {
+      const manager = getManager(req, res);
+      if (!manager) return;
       const id = Array.isArray(req.params['id'])
         ? req.params['id'][0]
         : req.params['id'];
@@ -137,6 +169,8 @@ export function createSessionRouter(manager: SessionManager): Router {
    */
   router.put('/:id', (req: Request, res: Response) => {
     try {
+      const manager = getManager(req, res);
+      if (!manager) return;
       const id = Array.isArray(req.params['id'])
         ? req.params['id'][0]
         : req.params['id'];

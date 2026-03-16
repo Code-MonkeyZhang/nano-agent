@@ -16,7 +16,7 @@ function generateId(): AgentId {
   return randomUUID();
 }
 
-function getAgentDirPath(id: AgentId): string {
+export function getAgentDirPath(id: AgentId): string {
   if (!agentsDir) {
     throw new Error(
       'AgentConfigStore not initialized. Call initAgentConfigStore() first.'

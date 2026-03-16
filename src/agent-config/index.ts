@@ -7,6 +7,7 @@ export {
   listAgentConfigs,
   hasAgentConfig,
   reloadAgentConfig,
+  getAgentDirPath,
 } from './store.js';
 export type {
   AgentId,

@@ -30,6 +30,15 @@ import { SessionStore } from '../session/store.js';
 import { SessionManager } from '../session/manager.js';
 import type { SessionManagersMap } from './http-server.js';
 
+export const sessionManagers: SessionManagersMap = new Map();
+
+export function registerSessionManager(
+  agentId: string,
+  manager: SessionManager
+): void {
+  sessionManagers.set(agentId, manager);
+}
+
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const server = net.createServer();
@@ -241,12 +250,12 @@ class ServerManager {
       }
 
       // Create SessionStore and SessionManager for each agent
-      const sessionManagers: SessionManagersMap = new Map();
+      sessionManagers.clear();
       for (const agentConfig of agentConfigs) {
         const agentBasePath = path.join(DATA_DIR, 'agents', agentConfig.id);
         const sessionStore = new SessionStore(agentBasePath);
         const sessionManager = new SessionManager(sessionStore, agentConfig.id);
-        sessionManagers.set(agentConfig.id, sessionManager);
+        registerSessionManager(agentConfig.id, sessionManager);
         Logger.log(
           'SERVER',
           `Initialized session manager for agent: ${agentConfig.id}`

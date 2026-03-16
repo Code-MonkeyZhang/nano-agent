@@ -81,15 +81,18 @@ describe('Phase 8: HTTP API Tests', () => {
     sessionStore = new SessionStore(sessionsPath);
     sessionManager = new SessionManager(sessionStore, 'adam');
 
+    const testSessionManagers = new Map<string, SessionManager>();
+    testSessionManagers.set('adam', sessionManager);
+
     app = express();
     app.use(express.json());
 
     app.use('/api/credentials', createCredentialRouter());
-    app.use('/api/agents', createAgentRouter());
+    app.use('/api/agents', createAgentRouter(testSessionManagers));
     app.use('/api/builtin-tools', createBuiltinToolRouter());
     app.use('/api/mcp', createMcpRouter());
     app.use('/api/skills', createSkillRouter());
-    app.use('/api/agents/adam/sessions', createSessionRouter(sessionManager));
+    app.use('/api/agents/:agentId/sessions', createSessionRouter(testSessionManagers));
 
     PORT = await findAvailablePort();
     BASE_URL = `http://localhost:${PORT}`;
