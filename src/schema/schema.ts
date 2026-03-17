@@ -1,10 +1,3 @@
-// ============ Enums ============
-
-export enum LLMProvider {
-  ANTHROPIC = 'anthropic',
-  OPENAI = 'openai',
-}
-
 // ============ Function Calling ============
 
 interface FunctionCall {

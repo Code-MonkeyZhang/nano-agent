@@ -13,7 +13,7 @@ const clients = new Map<string, WebSocket>();
  * @param {any} message - The message object
  * @returns {string} JSON string with message and timestamp
  */
-function createMessage(message: any): string {
+function createMessage(message: Record<string, unknown>): string {
   return JSON.stringify({
     ...message,
     timestamp: Date.now(),

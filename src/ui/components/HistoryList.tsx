@@ -87,7 +87,7 @@ export function HistoryList({ items, agent }: HistoryListProps) {
           case 'mcp':
             return <McpMessage key={index} />;
           case 'skill':
-            return <SkillMessage key={index} agent={agent} />;
+            return <SkillMessage key={index} />;
           case 'server_status':
             return <ServerStatusMessage key={index} state={item.state} />;
           default:

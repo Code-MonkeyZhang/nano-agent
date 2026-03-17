@@ -6,6 +6,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SessionStore } from '../src/session/store.js';
 import type { Session, SessionMeta } from '../src/session/types.js';
 
+const TEST_AGENT_ID = 'adam';
+
 describe('SessionStore', () => {
   let store: SessionStore;
   let testDir: string;
@@ -37,6 +39,7 @@ describe('SessionStore', () => {
       const sessions: SessionMeta[] = [
         {
           id: 'test-1',
+          agentId: TEST_AGENT_ID,
           title: 'Test Session',
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -65,6 +68,7 @@ describe('SessionStore', () => {
       const sessions: SessionMeta[] = [
         {
           id: 'test-1',
+          agentId: TEST_AGENT_ID,
           title: 'Test Session',
           createdAt: 1000,
           updatedAt: 2000,
@@ -88,6 +92,7 @@ describe('SessionStore', () => {
     it('should return parsed session when file exists', () => {
       const session: Session = {
         id: 'test-1',
+        agentId: TEST_AGENT_ID,
         title: 'Test Session',
         createdAt: 1000,
         updatedAt: 2000,
@@ -124,6 +129,7 @@ describe('SessionStore', () => {
     it('should create directory and save session', () => {
       const session: Session = {
         id: 'test-1',
+        agentId: TEST_AGENT_ID,
         title: 'Test Session',
         createdAt: 1000,
         updatedAt: 2000,
@@ -164,6 +170,7 @@ describe('SessionStore', () => {
     it('should save and load session correctly', () => {
       const session: Session = {
         id: 'integration-test',
+        agentId: TEST_AGENT_ID,
         title: 'Integration Test',
         createdAt: 1000,
         updatedAt: 2000,
@@ -181,6 +188,7 @@ describe('SessionStore', () => {
       const sessions: SessionMeta[] = [
         {
           id: 'session-1',
+          agentId: TEST_AGENT_ID,
           title: 'Session 1',
           createdAt: 1000,
           updatedAt: 2000,
@@ -188,6 +196,7 @@ describe('SessionStore', () => {
         },
         {
           id: 'session-2',
+          agentId: 'eve',
           title: 'Session 2',
           createdAt: 3000,
           updatedAt: 4000,

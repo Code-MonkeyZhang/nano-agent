@@ -1,13 +1,9 @@
 import { Box, Text } from 'ink';
 import { theme } from '../../themes.js';
-import type { AgentCore } from '../../../agent.js';
+import { listSkills } from '../../../skill-pool/store.js';
 
-interface SkillMessageProps {
-  agent: AgentCore;
-}
-
-export function SkillMessage({ agent }: SkillMessageProps) {
-  const skills = agent.listSkills();
+export function SkillMessage() {
+  const skills = listSkills();
 
   return (
     <Box
@@ -25,8 +21,8 @@ export function SkillMessage({ agent }: SkillMessageProps) {
         <Text color={theme.text.secondary}>No skills available</Text>
       ) : (
         skills.map((skill) => (
-          <Text key={skill} color={theme.text.primary}>
-            {`  ${skill}`}
+          <Text key={skill.id} color={theme.text.primary}>
+            {`  ${skill.name}`}
           </Text>
         ))
       )}

@@ -1,4 +1,14 @@
+import type { AgentId } from '../agent-config/types.js';
 import type { Message } from '../schema/index.js';
+
+/**
+ * Options for creating a new session.
+ */
+export interface CreateSessionOptions {
+  title?: string;
+  workspacePath?: string;
+  modelId?: string;
+}
 
 /**
  * Session metadata stored in the index file (sessions.json).
@@ -6,10 +16,13 @@ import type { Message } from '../schema/index.js';
  */
 export interface SessionMeta {
   id: string;
+  agentId: AgentId;
   title: string;
   createdAt: number;
   updatedAt: number;
   messageCount: number;
+  workspacePath?: string;
+  modelId?: string;
 }
 
 /**

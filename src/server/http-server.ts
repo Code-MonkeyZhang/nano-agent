@@ -2,21 +2,26 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import { createServer as createHttpServer } from 'http';
 import cors from 'cors';
-import { Config } from '../config.js';
-import { AgentCore } from '../agent.js';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createChatRouter } from './chat.js';
 import { createSessionRouter } from './sessions.js';
 import { createConfigRouter } from './config-router.js';
+import { createCredentialRouter } from './credential-router.js';
+import { createAgentRouter } from './agent-router.js';
+import { createBuiltinToolRouter } from './builtin-tool-router.js';
+import { createMcpRouter } from './mcp-router.js';
+import { createSkillRouter } from './skill-router.js';
+import { createAvatarRouter } from './avatar-router.js';
 import { Logger } from '../util/logger.js';
+import type { SessionManager } from '../session/index.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PRESETS_DIR = path.resolve(__dirname, '..', '..', 'resources', 'avatars');
 
 const app = express();
 
-let globalAgent: AgentCore | null = null;
 let globalAbortController: AbortController | null = null;
-
-export function getGlobalAgent(): AgentCore | null {
-  return globalAgent;
-}
 
 export function getGlobalAbortController(): AbortController | null {
   return globalAbortController;
@@ -33,22 +38,8 @@ export function clearGlobalAbortController(): void {
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      const allowedOrigins = [
-        'http://localhost:5173',
-        'http://localhost:5174',
-        'http://127.0.0.1:5173',
-        'http://127.0.0.1:5174',
-      ];
-      const isLocalhost =
-        origin.startsWith('http://localhost:') ||
-        origin.startsWith('http://127.0.0.1:');
-      if (allowedOrigins.includes(origin) || isLocalhost) {
-        callback(null, true);
-      } else {
-        callback(null, true);
-      }
+    origin: (_origin, callback) => {
+      callback(null, true);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -63,34 +54,41 @@ app.use((req, _res, next) => {
   next();
 });
 
+export type SessionManagersMap = Map<string, SessionManager>;
+
 /**
- * Setup OpenAI compatible routes to chat router
- * @param config - The agent configuration
- * @param workspaceDir - The workspace directory
+ * Setup OpenAI compatible routes and management APIs.
+ *
+ * @param sessionManagers - Map of agentId -> SessionManager for agent-specific session routes
  */
-export async function setupOpenAIRoutes(config: Config, workspaceDir: string) {
-  Logger.log('HTTP', 'Setting up routes', {
-    workspaceDir,
-    model: config.llm.model,
-  });
+export async function setupOpenAIRoutes(
+  sessionManagers?: SessionManagersMap
+): Promise<void> {
+  app.use('/v1/chat', createChatRouter(sessionManagers));
 
-  // init agent core
-  globalAgent = new AgentCore(config, workspaceDir);
-  await globalAgent.initialize();
+  // Register session routes dynamically for all agents
+  if (sessionManagers) {
+    app.use(
+      '/api/agents/:agentId/sessions',
+      createSessionRouter(sessionManagers)
+    );
+    Logger.log('HTTP', 'Registered dynamic session router for agents');
+  }
 
-  app.use('/v1/chat', createChatRouter());
-  app.use('/api/sessions', createSessionRouter());
   app.use('/api/config', createConfigRouter());
-
+  app.use('/api/credentials', createCredentialRouter());
+  app.use('/api/providers', createCredentialRouter());
+  app.use('/api/agents', createAgentRouter(sessionManagers));
+  app.use('/api/builtin-tools', createBuiltinToolRouter());
+  app.use('/api/mcp', createMcpRouter());
+  app.use('/api/skills', createSkillRouter());
+  app.use('/api', createAvatarRouter());
+  app.use('/presets/avatars', express.static(PRESETS_DIR));
   Logger.log('HTTP', 'Routes configured');
 }
 
 /**
  * Status endpoint - Returns server status and information
- * @route GET /api/status
- * @param req - Express request object
- * @param res - Express response object
- * @returns {Object} JSON response with status, timestamp, and message
  */
 app.get('/api/status', (_req: Request, res: Response) => {
   res.json({
@@ -102,10 +100,6 @@ app.get('/api/status', (_req: Request, res: Response) => {
 
 /**
  * Health check endpoint - Simple liveness check
- * @route GET /health
- * @param req - Express request object
- * @param res - Express response object
- * @returns {Object} JSON response with alive status and timestamp
  */
 app.get('/health', (_req: Request, res: Response) => {
   res.json({
@@ -116,10 +110,6 @@ app.get('/health', (_req: Request, res: Response) => {
 
 /**
  * Abort endpoint - Abort LLM stream
- * @route POST /api/control/abort
- * @param req - Express request object
- * @param res - Express response object
- * @returns {Object} JSON response with success status
  */
 app.post('/api/control/abort', (_req: Request, res: Response) => {
   Logger.log('HTTP', 'Abort request received');

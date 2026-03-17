@@ -1,30 +1,32 @@
 import { randomUUID } from 'node:crypto';
 import { SessionStore } from './store.js';
-import type { Session, SessionMeta } from './types.js';
+import type { Session, SessionMeta, CreateSessionOptions } from './types.js';
 import type { Message } from '../schema/index.js';
 
 /**
  * Manages session CRUD operations with metadata tracking.
  *
- * Provides a high-level API for session management
+ * Each SessionManager instance is bound to a specific agent's SessionStore.
+ * The agentId is stored in each session but is determined by which store is used.
  */
 export class SessionManager {
   private store: SessionStore;
+  private agentId: string;
 
   /**
-   * Creates a new SessionManager instance.
+   * Creates a SessionManager instance.
    *
-   * @param store - Optional SessionStore instance. Creates a new one if not provided.
+   * @param store - The SessionStore instance to use (determines the agent)
+   * @param agentId - The agent ID this manager belongs to
    */
-  constructor(store?: SessionStore) {
-    this.store = store ?? new SessionStore();
+  constructor(store: SessionStore, agentId: string) {
+    this.store = store;
+    this.agentId = agentId;
   }
 
   /**
    * Returns a list of all sessions (metadata only, no messages).
-   * Sessions are sorted descending order by time.
-   *
-   * @returns Array of session metadata
+   * Sessions are sorted by updatedAt in descending order.
    */
   listSessions(): SessionMeta[] {
     const sessions = this.store.loadIndex();
@@ -32,20 +34,23 @@ export class SessionManager {
   }
 
   /**
-   * Creates a new session.
+   * Creates a new session for this agent.
    *
-   * @param title - Session title (can be updated later after first message)
+   * @param options - Optional creation options (title, workspacePath, modelId)
    * @returns The newly created session
    */
-  createSession(title: string = 'New Session'): Session {
+  createSession(options?: CreateSessionOptions): Session {
     const now = Date.now();
     const session: Session = {
       id: randomUUID(),
-      title,
+      agentId: this.agentId,
+      title: options?.title ?? 'New Session',
       createdAt: now,
       updatedAt: now,
       messageCount: 0,
       messages: [],
+      workspacePath: options?.workspacePath,
+      modelId: options?.modelId,
     };
 
     this.store.saveSession(session);
@@ -107,53 +112,75 @@ export class SessionManager {
 
   /**
    * Updates the session title.
-   * Typically called after the first user message to set a meaningful title.
    *
    * @param id - Session identifier
    * @param title - New title
    * @returns Updated session or null if session not found
    */
   updateTitle(id: string, title: string): Session | null {
-    // 从文件读取原session
     const session = this.store.loadSession(id);
     if (!session) {
       return null;
     }
 
-    // 修改内存中的会话对象
     session.title = title;
     session.updatedAt = Date.now();
 
-    // 重新保存session (覆盖原文件)
     this.store.saveSession(session);
-
-    // 更新索引中session的标题和时间
     this.updateIndexEntry(session);
 
     return session;
   }
 
   /**
-   * Adds a new session entry to the index.
+   * Updates the session's workspace path.
+   *
+   * @param id - Session identifier
+   * @param workspacePath - New workspace path
+   * @returns Updated session or null if session not found
    */
+  updateWorkspacePath(id: string, workspacePath: string): Session | null {
+    const session = this.store.loadSession(id);
+    if (!session) {
+      return null;
+    }
+
+    session.workspacePath = workspacePath;
+    session.updatedAt = Date.now();
+
+    this.store.saveSession(session);
+    this.updateIndexEntry(session);
+
+    return session;
+  }
+
+  updateModelId(id: string, modelId: string | undefined): Session | null {
+    const session = this.store.loadSession(id);
+    if (!session) {
+      return null;
+    }
+
+    session.modelId = modelId;
+    session.updatedAt = Date.now();
+
+    this.store.saveSession(session);
+    this.updateIndexEntry(session);
+
+    return session;
+  }
+
   private addToIndex(session: Session): void {
     const index = this.store.loadIndex();
     index.push(this.sessionToMeta(session));
     this.store.saveIndex(index);
   }
 
-  /**
-   * Removes session entry from the index.
-   */
   private removeFromIndex(id: string): void {
     const index = this.store.loadIndex();
     const filtered = index.filter((s) => s.id !== id);
     this.store.saveIndex(filtered);
   }
 
-  /**
-   * Updates an existing session entry in the index.
-   */
   private updateIndexEntry(session: Session): void {
     const index = this.store.loadIndex();
     const idx = index.findIndex((s) => s.id === session.id);
@@ -164,16 +191,16 @@ export class SessionManager {
     }
   }
 
-  /**
-   * Extracts metadata from a full session object.
-   */
   private sessionToMeta(session: Session): SessionMeta {
     return {
       id: session.id,
+      agentId: session.agentId,
       title: session.title,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
       messageCount: session.messageCount,
+      workspacePath: session.workspacePath,
+      modelId: session.modelId,
     };
   }
 }

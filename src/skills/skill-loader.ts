@@ -5,6 +5,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import yaml from 'yaml';
+import { z } from 'zod';
 import { SkillSchema } from './types.js';
 import type { Skill } from './types.js';
 import { Logger } from '../util/logger.js';
@@ -72,7 +73,7 @@ export class SkillLoader {
 
       const { frontmatterText, body } = extracted;
 
-      let frontmatter: any;
+      let frontmatter: z.infer<typeof SkillSchema>;
       try {
         frontmatter = yaml.parse(frontmatterText);
       } catch (error) {

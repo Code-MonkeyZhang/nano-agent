@@ -52,7 +52,7 @@ export function AppContainer({ agent }: AppContainerProps) {
     useState<ServerState>(initialServerState);
   const [showStartup, setShowStartup] = useState(true);
 
-  const currentModel = agent.config.llm.model;
+  const currentModel = agent.runConfig.modelId;
 
   // 监听 MCP 服务器状态变化
   useEffect(() => {

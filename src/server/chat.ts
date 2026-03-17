@@ -7,14 +7,24 @@ import { convertOpenAIRequest } from './converters/openai-to-nanoagent.js';
 import type { ChatCompletionRequest } from './types/openai-types.js';
 import { Logger } from '../util/logger.js';
 import {
-  getGlobalAgent,
   createGlobalAbortController,
   clearGlobalAbortController,
 } from './http-server.js';
-import { getGlobalSessionManager } from './sessions.js';
+import { createAgent } from '../agent-factory/index.js';
+import { getAgentConfig } from '../agent-config/store.js';
 import type { Message } from '../schema/index.js';
+import type { AgentId } from '../agent-config/types.js';
+import type { SessionManager } from '../session/index.js';
+
+import * as path from 'node:path';
 
 const MAX_TITLE_LENGTH = 30;
+
+const DEFAULT_WORKSPACE_DIR = path.resolve(
+  process.cwd(),
+  'data',
+  'agent-space'
+);
 
 /**
  * Extracts text content from a message.
@@ -56,17 +66,18 @@ function generateTitle(messages: Message[]): string {
 /**
  * Creates an OpenAI-compatible chat router.
  *
- * @param config - The agent configuration.
- * @param workspaceDir - The workspace directory.
+ * @param sessionManagers - Map of agentId -> SessionManager
  * @returns Express Router with `/completions` endpoint.
  */
-export function createChatRouter(): Router {
+export function createChatRouter(
+  sessionManagers?: Map<string, SessionManager>
+): Router {
   const router = Router();
 
   /**
    * OpenAI 兼容的聊天补全端点
    *
-   * 接收 OpenAI 格式的聊天补全请求
+   * 接收 Openai 格式的聊天补全请求
    * - 验证请求消息格式
    * - 将请求转换为内部格式
    * - 调用 AgentCore 处理消息
@@ -81,21 +92,71 @@ export function createChatRouter(): Router {
         throw new Error('Invalid messages array');
       }
 
-      const { messages: requestMessages } = convertOpenAIRequest(body); // 把前端发来的 OpenAI 格式转换成 nano-agent 内部使用的格式 TODO: 以后可能要改
-      const sessionId = body.sessionId; // 获取前端传过来的session id
+      const { messages: requestMessages } = convertOpenAIRequest(body);
+      const sessionId = body.sessionId;
 
-      const agent = getGlobalAgent();
-      if (!agent) {
-        throw new Error('AgentCore not initialized');
+      // Get session manager based on agentId from session or default to 'adam'
+      let agentId: AgentId = 'adam';
+      let sessionManager: SessionManager | undefined;
+
+      if (sessionId && sessionManagers) {
+        // Try to find the session in any agent's session manager
+        for (const [, manager] of sessionManagers) {
+          const session = manager.getSession(sessionId);
+          if (session) {
+            agentId = session.agentId;
+            sessionManager = manager;
+            break;
+          }
+        }
       }
 
-      const sessionManager = getGlobalSessionManager();
-      let isNewSession = false;
+      // If not found by sessionId, use default agent's session manager
+      if (!sessionManager && sessionManagers) {
+        sessionManager = sessionManagers.get(agentId);
+      }
 
-      // 使用当前的 systemPrompt
+      let isNewSession = false;
+      let workspacePath: string | undefined;
+      let sessionModelId: string | undefined;
+
+      if (sessionId && sessionManager) {
+        const session = sessionManager.getSession(sessionId);
+        if (session) {
+          agentId = session.agentId;
+          // Re-fetch session manager for the correct agent
+          if (sessionManagers) {
+            sessionManager = sessionManagers.get(agentId);
+          }
+          isNewSession = session.messageCount === 0;
+          workspacePath = session.workspacePath;
+          sessionModelId = session.modelId;
+          Logger.log('CHAT', `Session ${sessionId} bound to agent ${agentId}`);
+        } else {
+          Logger.log(
+            'CHAT',
+            `Session ${sessionId} not found, using default agent`
+          );
+        }
+      }
+
+      if (!workspacePath) {
+        const agentConfig = getAgentConfig(agentId);
+        workspacePath = agentConfig?.defaultWorkspacePath;
+      }
+
+      const finalWorkspaceDir = workspacePath ?? DEFAULT_WORKSPACE_DIR;
+      Logger.log('CHAT', `Using workspace: ${finalWorkspaceDir}`);
+
+      // TODO 现在每次发送请求都会创建一个Agent,这个迟早要改
+      const agent = await createAgent(
+        agentId,
+        finalWorkspaceDir,
+        sessionModelId
+      );
+
       agent.messages = [{ role: 'system', content: agent.systemPrompt }];
 
-      // Load history from session (skip system prompt)
       if (sessionId && sessionManager) {
         const session = sessionManager.getSession(sessionId);
         if (session) {
@@ -104,13 +165,10 @@ export function createChatRouter(): Router {
               agent.messages.push(msg);
             }
           }
-          isNewSession = session.messageCount === 0;
           Logger.log(
             'CHAT',
             `Loaded ${session.messages.length} messages from session ${sessionId}`
           );
-        } else {
-          Logger.log('CHAT', `Session ${sessionId} not found, ignoring`);
         }
       }
 
@@ -132,7 +190,7 @@ export function createChatRouter(): Router {
         `Loaded ${requestMessages.length} new messages from request`
       );
 
-      const modelName = agent.config.llm.model;
+      const modelName = agent.runConfig.modelId;
       const abortController = createGlobalAbortController();
       const signal = abortController.signal;
 
@@ -343,7 +401,18 @@ export function createChatRouter(): Router {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (
+      if (errorMessage.includes('No credential found')) {
+        const providerMatch = errorMessage.match(/provider '(\w+)'/);
+        const provider = providerMatch ? providerMatch[1] : 'unknown';
+        res.status(401).json({
+          error: {
+            code: 'MISSING_CREDENTIALS',
+            message: `API key not configured for provider '${provider}'. Please configure your API key in Settings.`,
+            type: 'authentication_error',
+            provider,
+          },
+        });
+      } else if (
         errorMessage.includes('404') ||
         errorMessage.includes('page not found')
       ) {
@@ -355,7 +424,6 @@ export function createChatRouter(): Router {
           },
         });
       } else {
-        // Internal server error
         Logger.log('Chat API', `Error: ${errorMessage}`, error);
         if (!res.headersSent) {
           res.status(500).json({

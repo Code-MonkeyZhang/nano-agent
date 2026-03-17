@@ -1,226 +1,83 @@
-import * as path from 'node:path';
-import * as fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { Logger } from './util/logger.js';
-import { LLMClient } from './llm-client/llm-client.js';
-import { Config } from './config.js';
-import {
-  BashKillTool,
-  BashOutputTool,
-  BashTool,
-  EditTool,
-  ReadTool,
-  WriteTool,
-  loadMcpToolsAsync,
-  setMcpTimeoutConfig,
-  type Tool,
-  type ToolResult,
-} from './tools/index.js';
+import { stream, type Model, type Api } from '@mariozechner/pi-ai';
+import type { Tool, ToolResult } from './tools/index.js';
 import type { Message, ToolCall, AgentEvent } from './schema/index.js';
-import { SkillLoader, GetSkillTool } from './skills/index.js';
 import { getGlobalAbortController } from './server/http-server.js';
+import type { AgentRunConfig } from './agent-factory/types.js';
+import type { SkillEntry } from './skill-pool/types.js';
+import {
+  createContext,
+  convertPiAiToolCallToNanoAgent,
+} from './converters/pi-ai-converter.js';
 
-/**
- * Find the project root directory by searching for package.json.
- * Starts from the current file location and searches upward.
- *
- * @returns The absolute path to the project root directory
- * @throws Error if package.json cannot be found
- */
-function findProjectRoot(): string {
-  let currentDir = path.dirname(fileURLToPath(import.meta.url));
+function buildSystemPrompt(
+  basePrompt: string,
+  skills: SkillEntry[],
+  workspaceDir: string
+): string {
+  let prompt = basePrompt;
 
-  while (true) {
-    const packageJsonPath = path.join(currentDir, 'package.json');
-    if (fs.existsSync(packageJsonPath)) {
-      return currentDir;
-    }
+  if (skills.length > 0) {
+    const skillSections = skills
+      .map((skill) => `### ${skill.name}\n\n${skill.content}`)
+      .join('\n\n---\n\n');
 
-    const parentDir = path.resolve(currentDir, '..');
-    if (parentDir === currentDir) {
-      throw new Error('Cannot find project root (package.json not found)');
-    }
-    currentDir = parentDir;
-  }
-}
+    prompt += `
 
-/**
- * Find skills directory with fallback mechanism.
- *
- * Search order:
- * 1. Config-specified directory (relative to CWD)
- * 2. Package installation directory (built-in skills)
- *
- * @param skillsDirConfig - The skillsDir from config (default: './skills')
- * @returns The absolute path to skills directory
- */
-function findSkillsDir(skillsDirConfig: string): string {
-  const cwdSkillsDir = path.resolve(skillsDirConfig);
-  if (fs.existsSync(cwdSkillsDir)) {
-    return cwdSkillsDir;
+## Available Skills
+
+${skillSections}`;
   }
 
-  const projectRoot = findProjectRoot();
-  const packageSkillsDir = path.join(projectRoot, 'skills');
-
-  if (fs.existsSync(packageSkillsDir)) {
-    Logger.log('STARTUP', `Using built-in skills from: ${packageSkillsDir}`);
-    return packageSkillsDir;
-  }
-
-  return cwdSkillsDir;
-}
-
-function buildSystemPrompt(basePrompt: string, workspaceDir: string): string {
-  if (basePrompt.includes('Current Workspace')) {
-    return basePrompt;
-  }
-  return `${basePrompt}
+  if (!prompt.includes('Current Workspace')) {
+    prompt += `
 
 ## Current Workspace
 You are currently working in: \`${workspaceDir}\`
 All relative paths will be resolved relative to this directory.`;
+  }
+
+  return prompt;
 }
 
+/**
+ * Core agent runtime that executes LLM conversations with tool calling.
+ *
+ * AgentCore is designed to accept pre-assembled configuration from AgentFactory.
+ * It handles the ReAct loop: thinking → tool calling → result processing.
+ *
+ * System prompt is built internally from baseSystemPrompt + skills + workspace.
+ */
 export class AgentCore {
-  public config: Config;
-  public llmClient?: LLMClient;
-  public systemPrompt: string = '';
+  public runConfig: AgentRunConfig;
+  public model: Model<Api>;
+  public apiKey: string;
+  public systemPrompt: string;
   public maxSteps: number;
   public messages: Message[] = [];
   public workspaceDir: string;
   public tools: Map<string, Tool> = new Map();
-  private skillLoader?: SkillLoader;
 
-  constructor(config: Config, workspaceDir: string) {
-    this.config = config;
-    this.maxSteps = config.agent.maxSteps;
-    this.workspaceDir = path.resolve(workspaceDir);
-  }
+  constructor(config: AgentRunConfig, workspaceDir: string) {
+    this.runConfig = config;
+    this.maxSteps = config.maxSteps;
+    this.workspaceDir = workspaceDir;
 
-  async initialize(): Promise<void> {
-    Logger.log('STARTUP', 'Initializing AgentCore...');
+    this.model = config.model;
+    this.apiKey = config.apiKey;
 
-    // 1. Initialize LLM Client
-    if (!this.llmClient) {
-      this.llmClient = new LLMClient(
-        this.config.llm.apiKey,
-        this.config.llm.apiBase,
-        this.config.llm.provider,
-        this.config.llm.model,
-        this.config.llm.retry
-      );
-
-      Logger.log('STARTUP', 'Checking API connection...');
-      const isConnected = await this.llmClient.checkConnection();
-      if (isConnected) {
-        Logger.log('STARTUP', 'API connection OK');
-      } else {
-        Logger.log('STARTUP', 'API connection failed (Check API Key/Network)');
-      }
-    }
-
-    // 2. Load System Prompt
-    let baseSystemPrompt: string;
-    const systemPromptPath = Config.findConfigFile(
-      this.config.agent.systemPromptPath
+    this.systemPrompt = buildSystemPrompt(
+      config.baseSystemPrompt,
+      config.skills,
+      workspaceDir
     );
-    if (systemPromptPath && fs.existsSync(systemPromptPath)) {
-      baseSystemPrompt = fs.readFileSync(systemPromptPath, 'utf8');
-      Logger.log('STARTUP', 'Loaded system prompt');
-    } else {
-      baseSystemPrompt =
-        'You are Mini-Agent, an intelligent assistant powered by MiniMax M2 that can help users complete various tasks.';
-      Logger.log('STARTUP', 'System prompt not found, using default');
-    }
 
-    this.systemPrompt = buildSystemPrompt(baseSystemPrompt, this.workspaceDir);
-
-    // 3. Load Tools (Built-in + MCP + Skills)
-    await this.loadBuiltInTools();
-    await this.loadSkills();
-    await this.loadMcpTools();
-
-    // 4. Initialize Messages
-    this.messages = [{ role: 'system', content: this.systemPrompt }];
-  }
-
-  private async loadBuiltInTools(): Promise<void> {
-    const builtInTools: Tool[] = [
-      new ReadTool(this.workspaceDir),
-      new WriteTool(this.workspaceDir),
-      new EditTool(this.workspaceDir),
-      new BashTool(),
-      new BashOutputTool(),
-      new BashKillTool(),
-    ];
-
-    for (const tool of builtInTools) {
+    for (const tool of config.tools) {
       this.tools.set(tool.name, tool);
     }
-  }
 
-  private async loadSkills(): Promise<void> {
-    Logger.log('STARTUP', 'Loading Skills...');
-    const skillsDir = findSkillsDir(this.config.tools.skillsDir);
-
-    // Create directory if neither CWD nor package directory has skills
-    if (!fs.existsSync(skillsDir)) {
-      Logger.log('STARTUP', `Skills directory does not exist: ${skillsDir}`);
-      fs.mkdirSync(skillsDir, { recursive: true });
-    }
-
-    try {
-      this.skillLoader = new SkillLoader(skillsDir);
-      const discoveredSkills = this.skillLoader.discoverSkills();
-
-      if (discoveredSkills.length > 0) {
-        this.tools.set('get_skill', new GetSkillTool(this.skillLoader));
-        const skillsMetadata = this.skillLoader.getSkillsMetadataPrompt();
-        this.systemPrompt += `\n\n${skillsMetadata}`;
-        Logger.log(
-          'STARTUP',
-          'Skills loaded successfully',
-          discoveredSkills.map((s) => s.name)
-        );
-      } else {
-        Logger.log('STARTUP', 'No skills found in skills directory');
-      }
-    } catch (error) {
-      Logger.log('ERROR', 'Failed to load skills', error);
-    }
-  }
-
-  private async loadMcpTools(): Promise<void> {
-    Logger.log('STARTUP', 'Loading MCP tools...');
-    const mcpConfig = this.config.tools.mcp;
-
-    setMcpTimeoutConfig({
-      connectTimeout: mcpConfig.connectTimeout,
-      executeTimeout: mcpConfig.executeTimeout,
-      sseReadTimeout: mcpConfig.sseReadTimeout,
-    });
-
-    const mcpConfigPath = Config.findConfigFile(
-      this.config.tools.mcpConfigPath
-    );
-
-    if (mcpConfigPath) {
-      const mcpTools = await loadMcpToolsAsync(mcpConfigPath);
-      if (mcpTools.length > 0) {
-        for (const tool of mcpTools) {
-          this.tools.set(tool.name, tool);
-        }
-        Logger.log('STARTUP', `Loaded ${mcpTools.length} MCP tools`);
-      } else {
-        Logger.log('STARTUP', 'No available MCP tools found');
-      }
-    } else {
-      Logger.log(
-        'STARTUP',
-        `MCP config file not found: ${this.config.tools.mcpConfigPath}`
-      );
-    }
+    this.messages = [{ role: 'system', content: this.systemPrompt }];
+    Logger.log('AGENT', `AgentCore created with ${config.tools.length} tools`);
   }
 
   addUserMessage(content: string): void {
@@ -234,10 +91,6 @@ export class AgentCore {
 
   listTools(): Tool[] {
     return Array.from(this.tools.values());
-  }
-
-  listSkills(): string[] {
-    return this.skillLoader?.listSkills() ?? [];
   }
 
   async executeTool(
@@ -267,61 +120,66 @@ export class AgentCore {
     }
   }
 
-  // 生成LLM输出的核心函数
+  /**
+   * Main ReAct loop that generates LLM responses and handles tool calls.
+   *
+   * Yields events for thinking, content, and tool execution.
+   * Returns the final response text when complete.
+   */
   async *runStream(): AsyncGenerator<AgentEvent, string, void> {
-    if (!this.llmClient) {
-      throw new Error('AgentCore not initialized. Call initialize() first.');
-    }
-
-    // ReAct主循环
     for (let step = 0; step < this.maxSteps; step++) {
       yield { type: 'step_start', step: step + 1, maxSteps: this.maxSteps };
 
       let fullContent = '';
       let fullThinking = '';
-      let toolCalls: ToolCall[] | null = null;
+      const toolCalls: ToolCall[] = [];
       const toolList = this.listTools();
 
-      for await (const chunk of this.llmClient.generateStream(
-        this.messages,
-        toolList
-      )) {
-        // 在流式响应时进行abort检查
+      const context = createContext(this.systemPrompt, this.messages, toolList);
+
+      const eventStream = stream(this.model, context, { apiKey: this.apiKey });
+
+      for await (const event of eventStream) {
         const abortCtrl = getGlobalAbortController();
         if (abortCtrl?.signal.aborted) {
           return '';
         }
-
-        if (chunk.thinking) {
-          yield { type: 'thinking', content: chunk.thinking };
-          fullThinking += chunk.thinking;
+        // 每个chunk都会转换成 nano-agent自己的event-type TODO: 以后可能要统一使用pi-ai的event
+        if (event.type === 'thinking_delta') {
+          yield { type: 'thinking', content: event.delta };
+          fullThinking += event.delta;
         }
 
-        if (chunk.content) {
-          yield { type: 'content', content: chunk.content };
-          fullContent += chunk.content;
+        if (event.type === 'text_delta') {
+          yield { type: 'content', content: event.delta };
+          fullContent += event.delta;
         }
 
-        if (chunk.tool_calls) {
-          toolCalls = chunk.tool_calls;
+        if (event.type === 'toolcall_end') {
+          const nanoToolCall = convertPiAiToolCallToNanoAgent(event.toolCall);
+          toolCalls.push(nanoToolCall);
+        }
+
+        if (event.type === 'done' || event.type === 'error') {
+          break;
         }
       }
 
+      // add full content to messages
       this.messages.push({
         role: 'assistant',
         content: fullContent,
         thinking: fullThinking || undefined,
-        tool_calls: toolCalls || undefined,
+        tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
       });
 
-      if (!toolCalls || toolCalls.length === 0) {
+      if (toolCalls.length === 0) {
         return fullContent;
       }
 
       yield { type: 'tool_call', tool_calls: toolCalls };
 
       for (const toolCall of toolCalls) {
-        // 在Tool use时进行abort检查
         const abortCtrl = getGlobalAbortController();
         if (abortCtrl?.signal.aborted) {
           return '';

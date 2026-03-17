@@ -7,10 +7,6 @@ import { Logger } from './util/logger.js';
 import { runInteractiveUI } from './ui/index.js';
 import { cleanupMcpConnections } from './tools/index.js';
 
-/**
- * CLI 主入口函数
- * 程序启动的入口点
- */
 export async function run(): Promise<void> {
   // 使用当前工作目录
   const workspaceDir = process.cwd();
@@ -22,15 +18,12 @@ export async function run(): Promise<void> {
   }
   const config = Config.fromYaml(configPath);
 
-  // 启动日志
-  Logger.initialize(undefined, 'agent', config.logging.enableLogging);
+  Logger.initialize(undefined, 'agent', config.enableLogging);
 
   // 记录启动日志
   Logger.log('STARTUP', 'Configuration loaded', {
     configPath,
     workspace: workspaceDir,
-    model: config.llm.model,
-    provider: config.llm.provider,
   });
 
   const onSigint = (): void => {
