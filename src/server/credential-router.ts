@@ -209,19 +209,15 @@ export function createCredentialRouter(): Router {
         return;
       }
 
+      let result;
       try {
-        await completeSimple(
+        result = await completeSimple(
           testModel,
           {
             messages: [{ role: 'user', content: 'Hi', timestamp: Date.now() }],
           },
           { apiKey, maxTokens: 5 }
         );
-
-        res.json({
-          valid: true,
-          models: models.map((m) => m.id),
-        });
       } catch (verifyError) {
         const errorMessage =
           verifyError instanceof Error
@@ -236,7 +232,26 @@ export function createCredentialRouter(): Router {
           valid: false,
           error: errorMessage,
         });
+        return;
       }
+
+      if (result.stopReason === 'error' || result.errorMessage) {
+        Logger.log(
+          'CREDENTIAL',
+          `Verification failed for ${provider}:`,
+          result.errorMessage
+        );
+        res.json({
+          valid: false,
+          error: result.errorMessage || 'API request failed',
+        });
+        return;
+      }
+
+      res.json({
+        valid: true,
+        models: models.map((m) => m.id),
+      });
     } catch (error) {
       Logger.log('CREDENTIAL', 'Error verifying credential', error);
       res.status(500).json({
