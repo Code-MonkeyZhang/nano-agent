@@ -34,7 +34,7 @@ export class SSEWriter {
   }
 
   /**
-   * 将数据块写入流
+   * 将数据块写入流（OpenAI 兼容格式）
    *
    * 数据格式化为 `data: <json>\n\n`，符合 SSE 规范
    *
@@ -44,6 +44,25 @@ export class SSEWriter {
     this.sendHeaders();
     this.started = true;
     this.res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+  }
+
+  /**
+   * 写入带事件类型的 SSE 消息
+   *
+   * 格式为：
+   * ```
+   * event: <type>
+   * data: <json>
+   *
+   * ```
+   *
+   * @param type - 事件类型
+   * @param data - 事件数据
+   */
+  writeEvent(type: string, data: object): void {
+    this.sendHeaders();
+    this.started = true;
+    this.res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
   }
 
   /**

@@ -15,6 +15,7 @@ import { createSkillRouter } from './skill-router.js';
 import { createAvatarRouter } from './avatar-router.js';
 import { Logger } from '../util/logger.js';
 import type { SessionManager } from '../session/index.js';
+import { SSEWriter } from './sse-writer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PRESETS_DIR = path.resolve(__dirname, '..', '..', 'resources', 'avatars');
@@ -106,6 +107,43 @@ app.get('/health', (_req: Request, res: Response) => {
     alive: true,
     timestamp: Date.now(),
   });
+});
+
+/**
+ * Test SSE endpoint - Verify structured event format
+ */
+app.get('/test-sse', async (_req: Request, res: Response) => {
+  const sse = new SSEWriter(res);
+
+  sse.writeEvent('message_start', {});
+
+  await new Promise((r) => setTimeout(r, 100));
+  sse.writeEvent('thinking', { delta: 'Let me think...' });
+
+  await new Promise((r) => setTimeout(r, 100));
+  sse.writeEvent('tool_call', {
+    id: 'tool-1',
+    name: 'Read',
+    input: { file_path: '/src/main.ts' },
+  });
+
+  await new Promise((r) => setTimeout(r, 100));
+  sse.writeEvent('tool_start', { toolId: 'tool-1' });
+
+  await new Promise((r) => setTimeout(r, 100));
+  sse.writeEvent('tool_result', {
+    toolId: 'tool-1',
+    result: 'file content here...',
+    success: true,
+  });
+
+  await new Promise((r) => setTimeout(r, 100));
+  sse.writeEvent('content', { delta: 'Hello!' });
+
+  await new Promise((r) => setTimeout(r, 100));
+  sse.writeEvent('complete', {});
+  sse.writeEvent('done', {});
+  sse.done();
 });
 
 /**

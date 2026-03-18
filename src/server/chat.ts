@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 
 import { SSEWriter } from './sse-writer.js';
@@ -84,7 +83,6 @@ export function createChatRouter(
    * - 通过 SSE 返回流式响应或同步返回完整响应
    */
   router.post('/completions', async (req: Request, res: Response) => {
-    const requestId = randomUUID();
     const body = req.body as ChatCompletionRequest;
 
     try {
@@ -190,7 +188,6 @@ export function createChatRouter(
         `Loaded ${requestMessages.length} new messages from request`
       );
 
-      const modelName = agent.runConfig.modelId;
       const abortController = createGlobalAbortController();
       const signal = abortController.signal;
 
@@ -199,167 +196,74 @@ export function createChatRouter(
         const sse = new SSEWriter(res);
         let wasAborted = false;
         try {
+          sse.writeEvent('message_start', {});
+
           for await (const event of agent.runStream()) {
             if (signal.aborted) {
               Logger.log('CHAT', 'Generation aborted by user');
-              // Send abort info to client
-              sse.write({
-                id: requestId,
-                object: 'chat.completion.chunk',
-                created: Math.floor(Date.now() / 1000),
-                model: modelName,
-                choices: [
-                  {
-                    index: 0,
-                    delta: {
-                      content: '\n\n⚠️ **生成已被用户中断**',
-                    },
-                    finish_reason: 'stop',
-                  },
-                ],
+              sse.writeEvent('error', {
+                error: '生成已被用户中断',
               });
-
               wasAborted = true;
-              sse.done();
+              sse.writeEvent('done', {});
               break;
             }
 
-            const timestamp = Math.floor(Date.now() / 1000);
-
             switch (event.type) {
               case 'thinking':
-                sse.write({
-                  id: requestId,
-                  object: 'chat.completion.chunk',
-                  created: timestamp,
-                  model: modelName,
-                  choices: [
-                    {
-                      index: 0,
-                      delta: { reasoning_content: event.content },
-                      finish_reason: null,
-                    },
-                  ],
-                });
+                sse.writeEvent('thinking', { delta: event.content });
                 break;
 
               case 'content':
-                sse.write({
-                  id: requestId,
-                  object: 'chat.completion.chunk',
-                  created: timestamp,
-                  model: modelName,
-                  choices: [
-                    {
-                      index: 0,
-                      delta: { content: event.content },
-                      finish_reason: null,
-                    },
-                  ],
-                });
+                sse.writeEvent('content', { delta: event.content });
                 break;
 
-              case 'tool_call': {
-                const toolBlocks = event.tool_calls
-                  .map((tc) => {
-                    try {
-                      JSON.parse(JSON.stringify(tc.function.arguments));
+              case 'tool_call':
+                for (const tc of event.tool_calls) {
+                  const input =
+                    typeof tc.function.arguments === 'string'
+                      ? JSON.parse(tc.function.arguments)
+                      : tc.function.arguments;
+                  sse.writeEvent('tool_call', {
+                    id: tc.id,
+                    name: tc.function.name,
+                    input,
+                  });
+                }
+                break;
 
-                      const argsStr =
-                        typeof tc.function.arguments === 'string'
-                          ? tc.function.arguments
-                          : JSON.stringify(tc.function.arguments, null, 2);
+              case 'tool_start':
+                sse.writeEvent('tool_start', { toolId: event.toolCall.id });
+                break;
 
-                      return `\n\n🔧 **Tool: ${tc.function.name}**\n\`\`\`json\n${argsStr}\n\`\`\``;
-                    } catch {
-                      return `\n\n🔧 **Tool: ${tc.function.name}**`;
-                    }
-                  })
-                  .join('\n\n');
-
-                sse.write({
-                  id: requestId,
-                  object: 'chat.completion.chunk',
-                  created: timestamp,
-                  model: modelName,
-                  choices: [
-                    {
-                      index: 0,
-                      delta: { reasoning_content: toolBlocks },
-                      finish_reason: null,
-                    },
-                  ],
+              case 'tool_result':
+                sse.writeEvent('tool_result', {
+                  toolId: event.toolCallId,
+                  result: event.result.success
+                    ? event.result.content
+                    : (event.result.error ?? 'Unknown error'),
+                  success: event.result.success,
                 });
                 break;
-              }
-
-              case 'tool_result': {
-                const resultBlock = event.result.success
-                  ? `\n\n✅ **Tool Result (${event.toolName})**\n\`\`\`\n${
-                      event.result.content.length > 500
-                        ? `${event.result.content.slice(0, 500)}...`
-                        : event.result.content
-                    }\n\`\`\``
-                  : `\n\n❌ **Tool Error (${event.toolName})**\n\`\`\`\n${event.result.error}\n\`\`\``;
-
-                sse.write({
-                  id: requestId,
-                  object: 'chat.completion.chunk',
-                  created: timestamp,
-                  model: modelName,
-                  choices: [
-                    {
-                      index: 0,
-                      delta: { reasoning_content: resultBlock },
-                      finish_reason: null,
-                    },
-                  ],
-                });
-                break;
-              }
 
               case 'step_start':
-                sse.write({
-                  id: requestId,
-                  object: 'chat.completion.chunk',
-                  created: timestamp,
-                  model: modelName,
-                  choices: [
-                    {
-                      index: 0,
-                      delta: {
-                        reasoning_content: `\n---\n**Step ${event.step}/${event.maxSteps}**\n---\n`,
-                      },
-                      finish_reason: null,
-                    },
-                  ],
+                sse.writeEvent('step_start', {
+                  step: event.step,
+                  maxSteps: event.maxSteps,
                 });
                 break;
 
               case 'error':
-                sse.write({
-                  id: requestId,
-                  object: 'chat.completion.chunk',
-                  created: timestamp,
-                  model: modelName,
-                  choices: [
-                    {
-                      index: 0,
-                      delta: {
-                        reasoning_content: `\n❌ **Error:** ${event.error}\n`,
-                      },
-                      finish_reason: null,
-                    },
-                  ],
-                });
+                sse.writeEvent('error', { error: event.error });
                 break;
             }
           }
 
           if (!wasAborted) {
+            sse.writeEvent('complete', {});
+            sse.writeEvent('done', {});
             sse.done();
 
-            // Save messages to session after successful completion
             if (sessionId && sessionManager) {
               const lastMsg = agent.messages[agent.messages.length - 1];
               if (lastMsg && lastMsg.role === 'assistant') {
@@ -368,7 +272,6 @@ export function createChatRouter(
                   sessionManager.appendMessage(sessionId, msg);
                 }
 
-                // Auto-generate title for new sessions
                 if (isNewSession) {
                   const title = generateTitle(newMessages);
                   sessionManager.updateTitle(sessionId, title);
@@ -383,7 +286,11 @@ export function createChatRouter(
             }
           }
         } catch (error) {
-          sse.error(error instanceof Error ? error : new Error(String(error)));
+          sse.writeEvent('error', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          sse.writeEvent('done', {});
+          sse.done();
         } finally {
           clearGlobalAbortController();
         }
