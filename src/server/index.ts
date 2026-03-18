@@ -265,7 +265,7 @@ class ServerManager {
       await setupOpenAIRoutes(sessionManagers);
       Logger.log('SERVER', 'OpenAI routes configured');
 
-      initWebSocket();
+      initWebSocket(sessionManagers);
       Logger.log('SERVER', 'WebSocket initialized');
 
       await this.listenOnPort(port);

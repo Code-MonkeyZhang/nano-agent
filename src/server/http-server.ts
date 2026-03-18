@@ -4,7 +4,6 @@ import { createServer as createHttpServer } from 'http';
 import cors from 'cors';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createChatRouter } from './chat.js';
 import { createSessionRouter } from './sessions.js';
 import { createConfigRouter } from './config-router.js';
 import { createCredentialRouter } from './credential-router.js';
@@ -15,27 +14,11 @@ import { createSkillRouter } from './skill-router.js';
 import { createAvatarRouter } from './avatar-router.js';
 import { Logger } from '../util/logger.js';
 import type { SessionManager } from '../session/index.js';
-import { SSEWriter } from './sse-writer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PRESETS_DIR = path.resolve(__dirname, '..', '..', 'resources', 'avatars');
 
 const app = express();
-
-let globalAbortController: AbortController | null = null;
-
-export function getGlobalAbortController(): AbortController | null {
-  return globalAbortController;
-}
-
-export function createGlobalAbortController(): AbortController {
-  globalAbortController = new AbortController();
-  return globalAbortController;
-}
-
-export function clearGlobalAbortController(): void {
-  globalAbortController = null;
-}
 
 app.use(
   cors({
@@ -57,17 +40,9 @@ app.use((req, _res, next) => {
 
 export type SessionManagersMap = Map<string, SessionManager>;
 
-/**
- * Setup OpenAI compatible routes and management APIs.
- *
- * @param sessionManagers - Map of agentId -> SessionManager for agent-specific session routes
- */
 export async function setupOpenAIRoutes(
   sessionManagers?: SessionManagersMap
 ): Promise<void> {
-  app.use('/v1/chat', createChatRouter(sessionManagers));
-
-  // Register session routes dynamically for all agents
   if (sessionManagers) {
     app.use(
       '/api/agents/:agentId/sessions',
@@ -88,9 +63,6 @@ export async function setupOpenAIRoutes(
   Logger.log('HTTP', 'Routes configured');
 }
 
-/**
- * Status endpoint - Returns server status and information
- */
 app.get('/api/status', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
@@ -99,66 +71,11 @@ app.get('/api/status', (_req: Request, res: Response) => {
   });
 });
 
-/**
- * Health check endpoint - Simple liveness check
- */
 app.get('/health', (_req: Request, res: Response) => {
   res.json({
     alive: true,
     timestamp: Date.now(),
   });
-});
-
-/**
- * Test SSE endpoint - Verify structured event format
- */
-app.get('/test-sse', async (_req: Request, res: Response) => {
-  const sse = new SSEWriter(res);
-
-  sse.writeEvent('message_start', {});
-
-  await new Promise((r) => setTimeout(r, 100));
-  sse.writeEvent('thinking', { delta: 'Let me think...' });
-
-  await new Promise((r) => setTimeout(r, 100));
-  sse.writeEvent('tool_call', {
-    id: 'tool-1',
-    name: 'Read',
-    input: { file_path: '/src/main.ts' },
-  });
-
-  await new Promise((r) => setTimeout(r, 100));
-  sse.writeEvent('tool_start', { toolId: 'tool-1' });
-
-  await new Promise((r) => setTimeout(r, 100));
-  sse.writeEvent('tool_result', {
-    toolId: 'tool-1',
-    result: 'file content here...',
-    success: true,
-  });
-
-  await new Promise((r) => setTimeout(r, 100));
-  sse.writeEvent('content', { delta: 'Hello!' });
-
-  await new Promise((r) => setTimeout(r, 100));
-  sse.writeEvent('complete', {});
-  sse.writeEvent('done', {});
-  sse.done();
-});
-
-/**
- * Abort endpoint - Abort LLM stream
- */
-app.post('/api/control/abort', (_req: Request, res: Response) => {
-  Logger.log('HTTP', 'Abort request received');
-
-  if (globalAbortController) {
-    globalAbortController.abort();
-    globalAbortController = null;
-    Logger.log('HTTP', 'Generation aborted');
-  }
-
-  res.json({ success: true });
 });
 
 const httpServer = createHttpServer(app);

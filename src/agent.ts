@@ -2,7 +2,6 @@ import { Logger } from './util/logger.js';
 import { stream, type Model, type Api } from '@mariozechner/pi-ai';
 import type { Tool, ToolResult } from './tools/index.js';
 import type { Message, ToolCall, AgentEvent } from './schema/index.js';
-import { getGlobalAbortController } from './server/http-server.js';
 import type { AgentRunConfig } from './agent-factory/types.js';
 import type { SkillEntry } from './skill-pool/types.js';
 import {
@@ -125,8 +124,12 @@ export class AgentCore {
    *
    * Yields events for thinking, content, and tool execution.
    * Returns the final response text when complete.
+   *
+   * @param signal - Optional AbortSignal to cancel the stream
    */
-  async *runStream(): AsyncGenerator<AgentEvent, string, void> {
+  async *runStream(
+    signal?: AbortSignal
+  ): AsyncGenerator<AgentEvent, string, void> {
     for (let step = 0; step < this.maxSteps; step++) {
       yield { type: 'step_start', step: step + 1, maxSteps: this.maxSteps };
 
@@ -140,11 +143,9 @@ export class AgentCore {
       const eventStream = stream(this.model, context, { apiKey: this.apiKey });
 
       for await (const event of eventStream) {
-        const abortCtrl = getGlobalAbortController();
-        if (abortCtrl?.signal.aborted) {
+        if (signal?.aborted) {
           return '';
         }
-        // 每个chunk都会转换成 nano-agent自己的event-type TODO: 以后可能要统一使用pi-ai的event
         if (event.type === 'thinking_delta') {
           yield { type: 'thinking', content: event.delta };
           fullThinking += event.delta;
@@ -165,12 +166,17 @@ export class AgentCore {
         }
       }
 
-      // add full content to messages
       this.messages.push({
         role: 'assistant',
         content: fullContent,
         thinking: fullThinking || undefined,
         tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+      });
+
+      Logger.log('CHAT', 'Assistant response', {
+        thinking: fullThinking || undefined,
+        content: fullContent,
+        toolCalls: toolCalls.length > 0 ? toolCalls.map(t => t.function.name) : undefined,
       });
 
       if (toolCalls.length === 0) {
@@ -180,8 +186,7 @@ export class AgentCore {
       yield { type: 'tool_call', tool_calls: toolCalls };
 
       for (const toolCall of toolCalls) {
-        const abortCtrl = getGlobalAbortController();
-        if (abortCtrl?.signal.aborted) {
+        if (signal?.aborted) {
           return '';
         }
 
