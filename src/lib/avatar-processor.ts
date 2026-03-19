@@ -1,9 +1,9 @@
 /**
- * Avatar image processor using sharp.
+ * Avatar image processor using jimp.
  * Handles center-crop, resize to 256x256, and PNG conversion.
  */
 
-import sharp from 'sharp';
+import { Jimp } from 'jimp';
 import type { Buffer } from 'node:buffer';
 
 const AVATAR_SIZE = 256;
@@ -11,24 +11,25 @@ const AVATAR_SIZE = 256;
 /**
  * Process an uploaded image into a square avatar.
  *
- * @param input - Image buffer (supports jpg, png, gif, webp)
+ * @param input - Image buffer (supports jpg, png, gif, bmp)
  * @returns PNG buffer of 256x256 centered avatar
  */
 export async function processAvatar(input: Buffer): Promise<Buffer> {
-  const image = sharp(input);
-  const metadata = await image.metadata();
+  const image = await Jimp.read(input);
 
-  if (!metadata.width || !metadata.height) {
+  const width = image.width;
+  const height = image.height;
+
+  if (!width || !height) {
     throw new Error('Invalid image: unable to read dimensions');
   }
 
-  const size = Math.min(metadata.width, metadata.height);
-  const left = Math.floor((metadata.width - size) / 2);
-  const top = Math.floor((metadata.height - size) / 2);
+  const size = Math.min(width, height);
+  const left = Math.floor((width - size) / 2);
+  const top = Math.floor((height - size) / 2);
 
-  return image
-    .extract({ left, top, width: size, height: size })
-    .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: 'cover' })
-    .png()
-    .toBuffer();
+  image.crop({ x: left, y: top, w: size, h: size });
+  image.resize({ w: AVATAR_SIZE, h: AVATAR_SIZE });
+
+  return image.getBuffer('image/png');
 }

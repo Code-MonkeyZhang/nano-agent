@@ -176,7 +176,10 @@ export class AgentCore {
       Logger.log('CHAT', 'Assistant response', {
         thinking: fullThinking || undefined,
         content: fullContent,
-        toolCalls: toolCalls.length > 0 ? toolCalls.map(t => t.function.name) : undefined,
+        toolCalls:
+          toolCalls.length > 0
+            ? toolCalls.map((t) => t.function.name)
+            : undefined,
       });
 
       if (toolCalls.length === 0) {
