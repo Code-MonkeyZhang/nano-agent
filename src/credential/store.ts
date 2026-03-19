@@ -25,7 +25,7 @@ const PROVIDER_NAMES: Record<string, string> = {
   zai: 'ZAI',
   mistral: 'Mistral',
   minimax: 'MiniMax',
-  'minimax-cn': 'MiniMax',
+  'minimax-cn': 'MiniMax CN',
   huggingface: 'Hugging Face',
   opencode: 'OpenCode',
   'opencode-go': 'OpenCode Go',
