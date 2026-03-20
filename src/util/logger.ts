@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { getLogsDir } from '../paths.js';
 
 export class Logger {
   private static logFile: string | null = null;
@@ -33,18 +33,9 @@ export class Logger {
     return this.logFile;
   }
 
-  static getLogsDirectory(): string {
-    let currentDir = path.dirname(fileURLToPath(import.meta.url));
-
-    while (currentDir !== path.dirname(currentDir)) {
-      if (fs.existsSync(path.join(currentDir, 'package.json'))) {
-        return path.join(currentDir, 'logs');
-      }
-      currentDir = path.dirname(currentDir);
-    }
-
-    return path.join(currentDir, 'logs');
-  }
+static getLogsDirectory(): string {
+  return getLogsDir();
+}
 
   static getMode(): 'agent' | 'server' {
     return this.mode;

@@ -8,8 +8,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as yaml from 'yaml';
-import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { getConfigDir } from './paths.js';
 
 const DEFAULTS = {
   LOGGING: {
@@ -85,24 +85,10 @@ export class Config {
   }
 
   static findConfigFile(filename: string): string | null {
-    const devConfig = path.join(process.cwd(), 'config', filename);
-    if (fs.existsSync(devConfig)) {
-      return devConfig;
-    }
-
-    const homeDir = process.env['HOME'] || process.env['USERPROFILE'] || '';
-    const userConfig = path.join(homeDir, '.nano-agent', 'config', filename);
-    if (fs.existsSync(userConfig)) {
-      return userConfig;
-    }
-
-    const packageRoot = path.resolve(
-      path.dirname(fileURLToPath(import.meta.url)),
-      '..'
-    );
-    const packageConfig = path.join(packageRoot, 'config', filename);
-    if (fs.existsSync(packageConfig)) {
-      return packageConfig;
+    const configDir = getConfigDir();
+    const configPath = path.join(configDir, filename);
+    if (fs.existsSync(configPath)) {
+      return configPath;
     }
 
     return null;

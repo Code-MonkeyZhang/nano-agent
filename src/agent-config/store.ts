@@ -7,7 +7,6 @@ import type {
   CreateAgentConfigInput,
   UpdateAgentConfigInput,
 } from './types.js';
-import { DEFAULT_AGENTS } from './types.js';
 
 let agentConfigs: Map<AgentId, AgentConfig> = new Map();
 let agentsDir: string | null = null;
@@ -77,28 +76,13 @@ function loadAllFromDirectory(): void {
 }
 
 /**
- * Create default agents (Adam and Eve) if no agents exist.
- */
-function createDefaultAgentsIfNeeded(): void {
-  if (agentConfigs.size === 0) {
-    for (const defaultConfig of DEFAULT_AGENTS) {
-      const config: AgentConfig = { ...defaultConfig };
-      agentConfigs.set(config.id, config);
-      saveAgentToFile(config);
-    }
-  }
-}
-
-/**
  * Initialize the agent config store from a directory.
  * Each agent config is stored as a separate JSON file.
- * If no agents exist, creates default Adam and Eve agents.
  */
 export function initAgentConfigStore(directory: string): void {
   agentsDir = directory;
   agentConfigs = new Map();
   loadAllFromDirectory();
-  createDefaultAgentsIfNeeded();
 }
 
 /**

@@ -1,7 +1,6 @@
 import * as net from 'node:net';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { httpServer, setupOpenAIRoutes } from './http-server.js';
 import { initWebSocket, shutdownWebSocket } from './websocket-server.js';
 import {
@@ -29,6 +28,7 @@ import { setMcpTimeoutConfig } from '../tools/index.js';
 import { SessionStore } from '../session/store.js';
 import { SessionManager } from '../session/manager.js';
 import type { SessionManagersMap } from './http-server.js';
+import { getDataDir, getWorkspaceDir } from '../paths.js';
 
 export const sessionManagers: SessionManagersMap = new Map();
 
@@ -54,17 +54,14 @@ function isPortAvailable(port: number): Promise<boolean> {
 
 type ServerStatusCallback = (state: ServerState) => void;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
-const DEFAULT_WORKSPACE_DIR = path.join(DATA_DIR, 'agent-space');
-
 function ensureDataDir(): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  const dataDir = getDataDir();
+  const workspaceDir = getWorkspaceDir();
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
   }
-  if (!fs.existsSync(DEFAULT_WORKSPACE_DIR)) {
-    fs.mkdirSync(DEFAULT_WORKSPACE_DIR, { recursive: true });
+  if (!fs.existsSync(workspaceDir)) {
+    fs.mkdirSync(workspaceDir, { recursive: true });
   }
 }
 
@@ -169,7 +166,7 @@ class ServerManager {
     this.enableTunnel = options.enableTunnel;
     this.tunnelFailed = false;
 
-    const workspaceDir = DEFAULT_WORKSPACE_DIR;
+    const workspaceDir = getWorkspaceDir();
 
     Logger.initialize(undefined, 'server', this.config.enableLogging);
     Logger.log('SERVER', 'Starting server', {
@@ -227,8 +224,8 @@ class ServerManager {
       ensureDataDir();
       setDefaultWorkspaceDir(workspaceDir);
 
-      initCredentialPool(path.join(DATA_DIR, 'credentials.json'));
-      initAgentConfigStore(path.join(DATA_DIR, 'agents'));
+      initCredentialPool(path.join(getDataDir(), 'credentials.json'));
+      initAgentConfigStore(path.join(getDataDir(), 'agents'));
       initBuiltinToolPool(workspaceDir);
       setGlobalRetryConfig(this.config.retry);
 
@@ -252,7 +249,7 @@ class ServerManager {
       // Create SessionStore and SessionManager for each agent
       sessionManagers.clear();
       for (const agentConfig of agentConfigs) {
-        const agentBasePath = path.join(DATA_DIR, 'agents', agentConfig.id);
+        const agentBasePath = path.join(getDataDir(), 'agents', agentConfig.id);
         const sessionStore = new SessionStore(agentBasePath);
         const sessionManager = new SessionManager(sessionStore, agentConfig.id);
         registerSessionManager(agentConfig.id, sessionManager);
