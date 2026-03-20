@@ -15,4 +15,3 @@ export type {
   CreateAgentConfigInput,
   UpdateAgentConfigInput,
 } from './types.js';
-export { DEFAULT_AGENTS } from './types.js';

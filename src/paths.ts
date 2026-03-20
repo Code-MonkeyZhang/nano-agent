@@ -16,7 +16,7 @@ export function getDataDir(): string {
 }
 
 export function getWorkspaceDir(): string {
-  return path.join(getDataDir(), 'agent-space');
+  return path.join(getUserHomeDir(), APP_NAME, 'agent-space');
 }
 
 export function getLogsDir(): string {

@@ -26,12 +26,10 @@ describe('AgentConfigStore', () => {
   });
 
   describe('initAgentConfigStore', () => {
-    it('should create default Adam and Eve agents when directory is empty', () => {
+    it('should return empty array when directory is empty', () => {
       const agents = listAgentConfigs();
 
-      expect(agents.length).toBe(2);
-      expect(agents.find((a) => a.id === 'adam')).toBeDefined();
-      expect(agents.find((a) => a.id === 'eve')).toBeDefined();
+      expect(agents.length).toBe(0);
     });
 
     it('should load existing agents from directory', () => {
@@ -59,32 +57,6 @@ describe('AgentConfigStore', () => {
 
       expect(custom).toBeDefined();
       expect(custom?.name).toBe('Custom Agent');
-    });
-
-    it('should not recreate default agents if agents already exist', () => {
-      const customAgent = {
-        id: 'existing',
-        name: 'Existing',
-        systemPrompt: 'Test',
-        provider: 'openai',
-        modelId: 'gpt-4o',
-        maxSteps: 5,
-        mcpIds: [],
-        skillIds: [],
-      };
-
-      const agentDir = path.join(tempDir, 'existing');
-      fs.mkdirSync(agentDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(agentDir, 'config.json'),
-        JSON.stringify(customAgent)
-      );
-
-      initAgentConfigStore(tempDir);
-      const agents = listAgentConfigs();
-      const existing = agents.find((a) => a.id === 'existing');
-
-      expect(existing).toBeDefined();
     });
   });
 
@@ -395,46 +367,6 @@ describe('AgentConfigStore', () => {
 
       expect(reloaded).toBeUndefined();
       expect(hasAgentConfig('reload-delete')).toBe(false);
-    });
-  });
-
-  describe('Default agents', () => {
-    it('should create Adam with correct configuration', () => {
-      const adam = getAgentConfig('adam');
-
-      expect(adam).toBeDefined();
-      expect(adam?.name).toBe('Adam');
-      expect(adam?.mcpIds).toEqual(['ticktick', 'notion']);
-      expect(adam?.modelId).toBe('gpt-4o');
-    });
-
-    it('should create Eve with correct configuration', () => {
-      const eve = getAgentConfig('eve');
-
-      expect(eve).toBeDefined();
-      expect(eve?.name).toBe('Eve');
-      expect(eve?.mcpIds).toEqual(['netease-openapi-mcp']);
-      expect(eve?.modelId).toBe('gpt-4o');
-    });
-
-    it('should allow deleting default agents', () => {
-      deleteAgentConfig('adam');
-      expect(hasAgentConfig('adam')).toBe(false);
-
-      deleteAgentConfig('eve');
-      expect(hasAgentConfig('eve')).toBe(false);
-    });
-
-    it('should recreate default agents when all deleted', () => {
-      deleteAgentConfig('adam');
-      deleteAgentConfig('eve');
-
-      expect(listAgentConfigs().length).toBe(0);
-
-      initAgentConfigStore(tempDir);
-
-      expect(hasAgentConfig('adam')).toBe(true);
-      expect(hasAgentConfig('eve')).toBe(true);
     });
   });
 });

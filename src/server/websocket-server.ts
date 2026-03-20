@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { httpServer } from './http-server.js';
 import { Logger } from '../util/logger.js';
 import { createAgent } from '../agent-factory/index.js';
-import { getAgentConfig } from '../agent-config/store.js';
+import { getAgentConfig, listAgentConfigs } from '../agent-config/store.js';
 import type { SessionManager } from '../session/index.js';
 import type { AgentId } from '../agent-config/types.js';
 import type {
@@ -76,7 +76,14 @@ async function handleChat(
   const abortController = new AbortController();
   activeAborts.set(ws, abortController);
 
-  let agentId: AgentId = 'adam';
+  const allAgents = listAgentConfigs();
+  if (allAgents.length === 0) {
+    sendMessage(ws, { type: 'error', message: '请先创建 Agent' });
+    activeAborts.delete(ws);
+    return;
+  }
+
+  let agentId: AgentId = allAgents[0].id;
   let sessionManager: SessionManager | undefined;
   let isNewSession = false;
   let workspacePath: string | undefined;

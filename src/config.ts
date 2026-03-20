@@ -93,4 +93,25 @@ export class Config {
 
     return null;
   }
+
+  static createDefault(): Config {
+    return new Config(
+      ConfigSchema.parse({
+        enableLogging: DEFAULTS.LOGGING.enableLogging,
+        retry: DEFAULTS.RETRY,
+        tools: {
+          ...DEFAULTS.TOOLS,
+          mcp: DEFAULTS.MCP,
+        },
+      })
+    );
+  }
+
+  toYamlString(): string {
+    return yaml.stringify({
+      enableLogging: this.enableLogging,
+      retry: this.retry,
+      tools: this.tools,
+    });
+  }
 }

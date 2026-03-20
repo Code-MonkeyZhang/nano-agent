@@ -28,7 +28,12 @@ import { setMcpTimeoutConfig } from '../tools/index.js';
 import { SessionStore } from '../session/store.js';
 import { SessionManager } from '../session/manager.js';
 import type { SessionManagersMap } from './http-server.js';
-import { getDataDir, getWorkspaceDir } from '../paths.js';
+import {
+  getDataDir,
+  getWorkspaceDir,
+  getConfigDir,
+  getLogsDir,
+} from '../paths.js';
 
 export const sessionManagers: SessionManagersMap = new Map();
 
@@ -54,14 +59,39 @@ function isPortAvailable(port: number): Promise<boolean> {
 
 type ServerStatusCallback = (state: ServerState) => void;
 
-function ensureDataDir(): void {
+/**
+ * Initialize all directories and default configuration files.
+ * Creates the complete directory structure and writes default config files
+ * if they don't exist. This should be called before loading any configuration.
+ */
+function initAllDirsAndFiles(): void {
+  const configDir = getConfigDir();
   const dataDir = getDataDir();
   const workspaceDir = getWorkspaceDir();
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+  const logsDir = getLogsDir();
+  const agentsDir = path.join(dataDir, 'agents');
+
+  const dirs = [configDir, dataDir, agentsDir, workspaceDir, logsDir];
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
   }
-  if (!fs.existsSync(workspaceDir)) {
-    fs.mkdirSync(workspaceDir, { recursive: true });
+
+  const configPath = path.join(configDir, 'config.yaml');
+  if (!fs.existsSync(configPath)) {
+    const defaultConfig = Config.createDefault();
+    fs.writeFileSync(configPath, defaultConfig.toYamlString());
+  }
+
+  const mcpPath = path.join(configDir, 'mcp.json');
+  if (!fs.existsSync(mcpPath)) {
+    fs.writeFileSync(mcpPath, '{\n  "mcpServers": {}\n}\n');
+  }
+
+  const credentialsPath = path.join(dataDir, 'credentials.json');
+  if (!fs.existsSync(credentialsPath)) {
+    fs.writeFileSync(credentialsPath, '{}\n');
   }
 }
 
@@ -78,6 +108,8 @@ class ServerManager {
   private readonly PORT_END = 3866;
 
   private constructor() {
+    initAllDirsAndFiles();
+
     const configPath = Config.findConfigFile('config.yaml');
     this.config = Config.fromYaml(configPath!);
 
@@ -221,7 +253,6 @@ class ServerManager {
     Logger.log('SERVER', `Using port: ${port}`);
 
     try {
-      ensureDataDir();
       setDefaultWorkspaceDir(workspaceDir);
 
       initCredentialPool(path.join(getDataDir(), 'credentials.json'));
@@ -241,13 +272,9 @@ class ServerManager {
         await initMcpPool(mcpConfigPath);
       }
 
-      const agentConfigs = listAgentConfigs();
-      if (agentConfigs.length === 0) {
-        throw new Error('No agent configs found');
-      }
-
       // Create SessionStore and SessionManager for each agent
       sessionManagers.clear();
+      const agentConfigs = listAgentConfigs();
       for (const agentConfig of agentConfigs) {
         const agentBasePath = path.join(getDataDir(), 'agents', agentConfig.id);
         const sessionStore = new SessionStore(agentBasePath);

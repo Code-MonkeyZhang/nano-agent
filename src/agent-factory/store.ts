@@ -1,6 +1,5 @@
 import { Logger } from '../util/logger.js';
 import { AgentCore } from '../agent.js';
-import { Config } from '../config.js';
 import { getAgentConfig } from '../agent-config/store.js';
 import { getCredential } from '../credential/store.js';
 import { getAllBuiltinTools } from '../builtin-tool-pool/store.js';
@@ -12,9 +11,10 @@ import type { SkillId } from '../skill-pool/types.js';
 import type { AgentRunConfig } from './types.js';
 
 let defaultWorkspaceDir = process.cwd();
-let globalRetryConfig = Config.fromYaml(
-  Config.findConfigFile('config.yaml')!
-).retry;
+let globalRetryConfig: AgentRunConfig['retry'] = {
+  enabled: true,
+  maxRetries: 3,
+};
 
 export function setDefaultWorkspaceDir(dir: string): void {
   defaultWorkspaceDir = dir;
