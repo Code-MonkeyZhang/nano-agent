@@ -8,7 +8,6 @@ import { runInteractiveUI } from './ui/index.js';
 import { cleanupMcpConnections } from './tools/index.js';
 
 export async function run(): Promise<void> {
-  // 使用当前工作目录
   const workspaceDir = process.cwd();
 
   // 查找 config.yaml 配置文件
@@ -18,14 +17,14 @@ export async function run(): Promise<void> {
   }
   const config = Config.fromYaml(configPath);
 
+  // 启动日志
   Logger.initialize(undefined, 'agent', config.enableLogging);
-
-  // 记录启动日志
   Logger.log('STARTUP', 'Configuration loaded', {
     configPath,
     workspace: workspaceDir,
   });
 
+  // 退出行为
   const onSigint = (): void => {
     void cleanupMcpConnections();
     process.exit(0);
