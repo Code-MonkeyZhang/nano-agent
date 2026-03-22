@@ -13,6 +13,8 @@ import {
   getWorkspaceDir,
 } from './util/paths.js';
 import { getDefaultConfigYaml } from './config/index.js';
+import { startServer } from './server/index.js';
+import { Logger } from './util/logger.js';
 
 // 需要创建的文件以及文件目录
 const REQUIRED_DIRS = [
@@ -60,4 +62,7 @@ function initAllDirsAndFiles(): void {
 }
 
 initAllDirsAndFiles();
+Logger.initialize(getLogsDir(), false);
+startServer(3000);
+
 console.log('Nano Agent initialized');
