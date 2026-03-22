@@ -3,7 +3,7 @@ import {
   getAgentsDir,
   getConfigDir,
   getConfigPath,
-  getCredentialsPath,
+  getAuthPath,
   getDataDir,
   getLogsDir,
   getMcpConfigPath,
@@ -31,7 +31,7 @@ const REQUIRED_FILES: Array<{
   getContent: () => string;
 }> = [
   { getPath: getConfigPath, getContent: getDefaultConfigYaml },
-  { getPath: getCredentialsPath, getContent: () => '{}\n' },
+  { getPath: getAuthPath, getContent: () => '{}\n' },
   { getPath: getMcpConfigPath, getContent: () => '{\n  "mcpServers": {}\n}\n' },
 ];
 

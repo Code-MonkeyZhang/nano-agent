@@ -1,3 +1,21 @@
+/**
+ * @fileoverview Application path utilities for nano-agent.
+ *
+ * Directory structure:
+ * ~/.nano-agent/
+ * ├── config/
+ * │   └── config.yaml
+ * ├── data/
+ * │   ├── auth.json
+ * │   ├── skills/
+ * │   ├── agents/
+ * │   └── mcp/
+ * │       ├── mcp.json
+ * │       └── servers/
+ * ├── agent-space/
+ * └── logs/
+ */
+
 import * as os from 'node:os';
 import * as path from 'node:path';
 
@@ -13,6 +31,5 @@ export const getMcpDir = () => path.join(getDataDir(), 'mcp');
 export const getMcpServersDir = () => path.join(getMcpDir(), 'servers');
 export const getAgentsDir = () => path.join(getDataDir(), 'agents');
 export const getConfigPath = () => path.join(getConfigDir(), 'config.yaml');
-export const getCredentialsPath = () =>
-  path.join(getDataDir(), 'credentials.json');
+export const getAuthPath = () => path.join(getDataDir(), 'auth.json');
 export const getMcpConfigPath = () => path.join(getMcpDir(), 'mcp.json');
