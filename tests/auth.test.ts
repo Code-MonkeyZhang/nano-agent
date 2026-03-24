@@ -1,9 +1,9 @@
 /**
- * @fileoverview Integration tests for the Auth module.
+ * @fileoverview Auth 模块集成测试
  *
- * Tests cover two layers:
- * 1. Auth Store Functions - direct testing of storage operations
- * 2. HTTP API Routes - testing via HTTP requests to Express server
+ * 测试覆盖两个层级：
+ * 1. Auth Store 函数 - 直接测试存储操作
+ * 2. HTTP API 路由 - 通过 HTTP 请求测试 Express 服务器
  */
 
 import {
@@ -13,6 +13,7 @@ import {
   beforeAll,
   afterAll,
   beforeEach,
+  vi,
 } from 'vitest';
 import express, { type Express } from 'express';
 import { createServer, type Server } from 'http';
@@ -21,7 +22,6 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import * as net from 'node:net';
 import {
-  initAuthPool,
   setAuth,
   deleteAuth,
   getAuth,
@@ -34,7 +34,19 @@ import {
   createAuthRouter,
 } from '../src/server/routers/auth.js';
 
-/** Find an available port for the test server */
+/** 临时测试目录 */
+let tempDir: string;
+/** 认证配置文件路径 */
+let authPath: string;
+
+vi.mock('../src/util/paths.js', () => ({
+  getAuthPath: () => authPath,
+}));
+
+/**
+ * 查找可用端口用于测试服务器
+ * @returns 可用的端口号
+ */
 function findAvailablePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -47,20 +59,20 @@ function findAvailablePort(): Promise<number> {
   });
 }
 
+/** Express 应用实例 */
 let app: Express;
+/** HTTP 服务器实例 */
 let httpServer: Server;
+/** 测试服务器端口 */
 let PORT: number;
+/** API 基础 URL */
 let BASE_URL: string;
-let tempDir: string;
-let authPath: string;
 
 describe('Auth Module Integration Tests', () => {
-  /** Setup test server and temporary directory */
+  /** 初始化测试服务器和临时目录 */
   beforeAll(async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'auth-test-'));
     authPath = path.join(tempDir, 'auth.json');
-
-    initAuthPool(authPath);
 
     app = express();
     app.use(express.json());
@@ -76,50 +88,30 @@ describe('Auth Module Integration Tests', () => {
     });
   });
 
-  /** Cleanup test server and temporary directory */
+  /** 清理测试服务器和临时目录 */
   afterAll(async () => {
     httpServer.close();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  /** Tests for Auth Store Functions */
+  /** Auth Store 函数测试 */
   describe('Auth Store Functions', () => {
-    /** Reset auth store before each test */
+    /** 每个测试前重置认证存储 */
     beforeEach(() => {
       if (fs.existsSync(authPath)) {
         fs.unlinkSync(authPath);
       }
-      initAuthPool(authPath);
     });
 
-    describe('initAuthPool', () => {
-      it('should initialize with empty store when file does not exist', () => {
-        const providers = listProvidersWithAuth();
-        expect(providers.length).toBeGreaterThan(0);
-        expect(providers.every((p) => p.hasAuth === false)).toBe(true);
-      });
-
-      it('should load existing auth data from file', () => {
-        const existingData: Record<string, Auth> = {
-          anthropic: { apiKey: 'sk-test-123' },
-          openai: { apiKey: 'sk-openai-456' },
-        };
-        fs.writeFileSync(authPath, JSON.stringify(existingData));
-
-        initAuthPool(authPath);
-        const providers = listProvidersWithAuth();
-
-        expect(providers.find((p) => p.id === 'anthropic')?.hasAuth).toBe(true);
-        expect(providers.find((p) => p.id === 'openai')?.hasAuth).toBe(true);
-      });
-    });
-
+    /** setAuth 函数测试 */
     describe('setAuth', () => {
+      /** 测试为提供商设置认证 */
       it('should set auth for a provider', () => {
         const auth = setAuth('anthropic' as Provider, { apiKey: 'sk-ant-test' });
         expect(auth.apiKey).toBe('sk-ant-test');
       });
 
+      /** 测试认证持久化到文件 */
       it('should persist auth to file', () => {
         setAuth('openai' as Provider, { apiKey: 'sk-test-key' });
 
@@ -129,6 +121,7 @@ describe('Auth Module Integration Tests', () => {
         expect(data['openai']?.apiKey).toBe('sk-test-key');
       });
 
+      /** 测试覆盖已存在的认证 */
       it('should overwrite existing auth', () => {
         setAuth('anthropic' as Provider, { apiKey: 'key1' });
         setAuth('anthropic' as Provider, { apiKey: 'key2' });
@@ -138,7 +131,9 @@ describe('Auth Module Integration Tests', () => {
       });
     });
 
+    /** getAuth 函数测试 */
     describe('getAuth', () => {
+      /** 测试获取已存在提供商的认证 */
       it('should return auth for existing provider', () => {
         setAuth('anthropic' as Provider, { apiKey: 'secret-key' });
 
@@ -147,24 +142,30 @@ describe('Auth Module Integration Tests', () => {
         expect(auth?.apiKey).toBe('secret-key');
       });
 
+      /** 测试获取不存在提供商的认证返回 undefined */
       it('should return undefined for non-existent provider', () => {
         const auth = getAuth('anthropic' as Provider);
         expect(auth).toBeUndefined();
       });
     });
 
+    /** hasAuth 函数测试 */
     describe('hasAuth', () => {
+      /** 测试已存在认证返回 true */
       it('should return true for existing auth', () => {
         setAuth('openai' as Provider, { apiKey: 'key' });
         expect(hasAuth('openai' as Provider)).toBe(true);
       });
 
+      /** 测试不存在认证返回 false */
       it('should return false for non-existent auth', () => {
         expect(hasAuth('openai' as Provider)).toBe(false);
       });
     });
 
+    /** deleteAuth 函数测试 */
     describe('deleteAuth', () => {
+      /** 测试删除已存在提供商的认证 */
       it('should delete auth for existing provider', () => {
         setAuth('anthropic' as Provider, { apiKey: 'key' });
         expect(hasAuth('anthropic' as Provider)).toBe(true);
@@ -175,12 +176,14 @@ describe('Auth Module Integration Tests', () => {
         expect(getAuth('anthropic' as Provider)).toBeUndefined();
       });
 
+      /** 测试删除不存在提供商抛出错误 */
       it('should throw error for non-existent provider', () => {
         expect(() => deleteAuth('anthropic' as Provider)).toThrow(
           'Auth not found'
         );
       });
 
+      /** 测试删除操作持久化到文件 */
       it('should persist deletion to file', () => {
         setAuth('openai' as Provider, { apiKey: 'key' });
         deleteAuth('openai' as Provider);
@@ -192,7 +195,9 @@ describe('Auth Module Integration Tests', () => {
       });
     });
 
+    /** listProvidersWithAuth 函数测试 */
     describe('listProvidersWithAuth', () => {
+      /** 测试返回所有提供商及其认证状态 */
       it('should return all providers with correct status', () => {
         setAuth('anthropic' as Provider, { apiKey: 'key1' });
         setAuth('openai' as Provider, { apiKey: 'key2' });
@@ -209,6 +214,7 @@ describe('Auth Module Integration Tests', () => {
         }
       });
 
+      /** 测试每个提供商包含模型信息 */
       it('should include model information for each provider', () => {
         const list = listProvidersWithAuth();
         const openai = list.find((p) => p.id === 'openai');
@@ -220,16 +226,17 @@ describe('Auth Module Integration Tests', () => {
     });
   });
 
-  /** Tests for HTTP Provider Routes */
+  /** HTTP Provider 路由测试 */
   describe('HTTP API - Provider Routes', () => {
     beforeEach(() => {
       if (fs.existsSync(authPath)) {
         fs.unlinkSync(authPath);
       }
-      initAuthPool(authPath);
     });
 
+    /** GET /api/providers 测试 */
     describe('GET /api/providers', () => {
+      /** 测试返回所有提供商及其认证状态 */
       it('should return all providers with auth status', async () => {
         const response = await fetch(`${BASE_URL}/api/providers`);
         expect(response.status).toBe(200);
@@ -241,6 +248,7 @@ describe('Auth Module Integration Tests', () => {
         expect(data.providers.length).toBeGreaterThan(0);
       });
 
+      /** 测试正确反映认证状态 */
       it('should reflect auth status correctly', async () => {
         await fetch(`${BASE_URL}/api/auth/openai`, {
           method: 'PUT',
@@ -259,16 +267,17 @@ describe('Auth Module Integration Tests', () => {
     });
   });
 
-  /** Tests for HTTP Auth Routes */
+  /** HTTP Auth 路由测试 */
   describe('HTTP API - Auth Routes', () => {
     beforeEach(() => {
       if (fs.existsSync(authPath)) {
         fs.unlinkSync(authPath);
       }
-      initAuthPool(authPath);
     });
 
+    /** PUT /api/auth/:provider 测试 */
     describe('PUT /api/auth/:provider', () => {
+      /** 测试为提供商创建认证 */
       it('should create auth for a provider', async () => {
         const response = await fetch(`${BASE_URL}/api/auth/openai`, {
           method: 'PUT',
@@ -285,6 +294,7 @@ describe('Auth Module Integration Tests', () => {
         expect(data.apiKey).toBe('sk-test-123');
       });
 
+      /** 测试缺少 apiKey 时返回 400 */
       it('should return 400 when apiKey is missing', async () => {
         const response = await fetch(`${BASE_URL}/api/auth/openai`, {
           method: 'PUT',
@@ -297,6 +307,7 @@ describe('Auth Module Integration Tests', () => {
         expect(data.error).toContain('apiKey');
       });
 
+      /** 测试更新已存在的认证 */
       it('should update existing auth', async () => {
         await fetch(`${BASE_URL}/api/auth/anthropic`, {
           method: 'PUT',
@@ -316,7 +327,9 @@ describe('Auth Module Integration Tests', () => {
       });
     });
 
+    /** GET /api/auth/:provider 测试 */
     describe('GET /api/auth/:provider', () => {
+      /** 测试获取已存在提供商的认证 */
       it('should return auth for existing provider', async () => {
         await fetch(`${BASE_URL}/api/auth/openai`, {
           method: 'PUT',
@@ -335,6 +348,7 @@ describe('Auth Module Integration Tests', () => {
         expect(data.apiKey).toBe('my-secret-key');
       });
 
+      /** 测试获取不存在的认证返回 404 */
       it('should return 404 for non-existent auth', async () => {
         const response = await fetch(`${BASE_URL}/api/auth/nonexistent`);
         expect(response.status).toBe(404);
@@ -344,7 +358,9 @@ describe('Auth Module Integration Tests', () => {
       });
     });
 
+    /** DELETE /api/auth/:provider 测试 */
     describe('DELETE /api/auth/:provider', () => {
+      /** 测试删除已存在的认证 */
       it('should delete existing auth', async () => {
         await fetch(`${BASE_URL}/api/auth/groq`, {
           method: 'PUT',
@@ -364,6 +380,7 @@ describe('Auth Module Integration Tests', () => {
         expect(getResponse.status).toBe(404);
       });
 
+      /** 测试删除不存在的认证返回 404 */
       it('should return 404 for non-existent auth', async () => {
         const response = await fetch(`${BASE_URL}/api/auth/nonexistent`, {
           method: 'DELETE',
@@ -373,11 +390,12 @@ describe('Auth Module Integration Tests', () => {
     });
 
     /**
-     * Tests for POST /api/auth/:provider/verify
-     * Note: These tests only cover error cases that don't require real API calls.
-     * Verification with real API keys is not tested to avoid external dependencies.
+     * POST /api/auth/:provider/verify 测试
+     * 注意：这些测试仅覆盖不需要真实 API 调用的错误情况。
+     * 不使用真实 API key 进行验证测试，以避免外部依赖。
      */
     describe('POST /api/auth/:provider/verify', () => {
+      /** 测试无 API key 时返回错误 */
       it('should return error when no API key provided or stored', async () => {
         const response = await fetch(`${BASE_URL}/api/auth/openai/verify`, {
           method: 'POST',
@@ -391,6 +409,7 @@ describe('Auth Module Integration Tests', () => {
         expect(data.error).toContain('No API key');
       });
 
+      /** 测试仅提供空对象时返回错误 */
       it('should return error when only empty object provided', async () => {
         const response = await fetch(`${BASE_URL}/api/auth/anthropic/verify`, {
           method: 'POST',

@@ -3,7 +3,6 @@
  */
 
 export {
-  initAuthPool,
   setAuth,
   deleteAuth,
   getAuth,

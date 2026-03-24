@@ -8,6 +8,14 @@ import type { Request, Response } from 'express';
 import { createServer as createHttpServer } from 'http';
 import { Logger } from '../util/logger.js';
 import { createProviderRouter, createAuthRouter } from './routers/auth.js';
+import { createAgentRouter, type SessionManagersMap } from './routers/agent.js';
+import { createSessionRouter } from './routers/session.js';
+import { createChatRouter } from './routers/chat.js';
+import { initWebSocket, isWebSocketInitialized } from './websocket-server.js';
+
+import { listAgentConfigs, getAgentDirPath } from '../agent/index.js';
+import { SessionStore } from '../session/store.js';
+import { SessionManager } from '../session/session-manager.js';
 
 const app = express();
 app.use(express.json());
@@ -32,9 +40,45 @@ app.get('/health', (_req: Request, res: Response) => {
   });
 });
 
+/** Global session managers map */
+const sessionManagers: SessionManagersMap = new Map();
+
+/**
+ * 给所有Agent创建对应的SessionStore, 然后保存在SessionManagersMap映射关系
+ */
+function initSessionManagers(): void {
+  const agentConfigs = listAgentConfigs();
+  for (const agentConfig of agentConfigs) {
+    const store = new SessionStore(getAgentDirPath(agentConfig.id));
+    sessionManagers.set(
+      agentConfig.id,
+      new SessionManager(
+        store,
+        agentConfig.id,
+        agentConfig.defaultModel,
+        agentConfig.defaultWorkspacePath
+      )
+    );
+  }
+  Logger.log('SERVER', `Initialized ${agentConfigs.length} session managers`);
+}
+
+initSessionManagers();
+
 app.use('/api/providers', createProviderRouter());
 app.use('/api/auth', createAuthRouter());
+app.use('/api/agents', createAgentRouter(sessionManagers));
+app.use('/api/agents/:agentId/sessions', createSessionRouter(sessionManagers));
+app.use(
+  '/api/agents/:agentId/sessions/:sessionId/chat',
+  createChatRouter(sessionManagers)
+);
 
 const httpServer = createHttpServer(app);
 
-export { httpServer, app };
+// Initialize WebSocket server
+if (!isWebSocketInitialized()) {
+  initWebSocket(httpServer);
+}
+
+export { httpServer };

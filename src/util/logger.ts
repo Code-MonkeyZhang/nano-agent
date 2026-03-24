@@ -59,14 +59,4 @@ export class Logger {
       fs.appendFileSync(this.logFile, fileEntry);
     }
   }
-
-  /**
-   * Write a debug log entry (alias for log).
-   * @param category - Log category
-   * @param message - Log message
-   * @param data - Optional additional data
-   */
-  static debug(category: string, message: string, data?: unknown) {
-    this.log(category, message, data);
-  }
 }
