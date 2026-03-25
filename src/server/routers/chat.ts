@@ -60,11 +60,6 @@ export function createChatRouter(sessionManagers: SessionManagersMap): Router {
         return;
       }
 
-      Logger.log(
-        'CHAT',
-        `Processing chat for agent: ${agentId}, session: ${sessionId}`
-      );
-
       const result = await processChat({
         agentId,
         sessionId,

@@ -75,10 +75,10 @@ function handleClientMessage(
         const { sessionId } = message.payload as { sessionId?: string };
         if (sessionId) {
           client.subscriptions.add(sessionId);
-          Logger.log(
-            'WS',
-            `Client ${client.id} subscribed to session: ${sessionId}`
-          );
+          Logger.log('WS', 'Client subscribed', {
+            clientId: client.id,
+            sessionId,
+          });
           sendToClient(client, { type: 'subscribed', sessionId });
         }
       }
@@ -89,10 +89,10 @@ function handleClientMessage(
         const { sessionId } = message.payload as { sessionId?: string };
         if (sessionId) {
           client.subscriptions.delete(sessionId);
-          Logger.log(
-            'WS',
-            `Client ${client.id} unsubscribed from session: ${sessionId}`
-          );
+          Logger.log('WS', 'Client unsubscribed', {
+            clientId: client.id,
+            sessionId,
+          });
         }
       }
       break;
@@ -114,20 +114,11 @@ function sendToClient(client: WebSocketClient, message: WSEvent): void {
 
 export function broadcastToSession(sessionId: string, event: WSEvent): void {
   const message = { ...event, sessionId };
-  let sentCount = 0;
 
   for (const client of clients.values()) {
     if (client.subscriptions.has(sessionId)) {
       sendToClient(client, message);
-      sentCount++;
     }
-  }
-
-  if (sentCount > 0) {
-    Logger.log(
-      'WS',
-      `Broadcast to ${sentCount} clients for session: ${sessionId}`
-    );
   }
 }
 

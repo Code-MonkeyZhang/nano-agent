@@ -65,6 +65,7 @@ function initSessionManagers(): void {
 }
 
 initSessionManagers();
+Logger.setSessionManagers(sessionManagers);
 
 app.use('/api/providers', createProviderRouter());
 app.use('/api/auth', createAuthRouter());

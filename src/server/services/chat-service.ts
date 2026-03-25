@@ -110,6 +110,12 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
               thinking: currentStep.thinking || undefined,
             });
             saveStepMessages(sessionManager, sessionId, agent, historyLength);
+            Logger.log('CHAT', 'Step complete', {
+              sessionId,
+              stepIndex: currentStep.stepIndex,
+              thinking: currentStep.thinking,
+              content: currentStep.content,
+            });
             broadcastToSession(sessionId, {
               type: 'step_complete',
               sessionId,
@@ -149,6 +155,12 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
         thinking: currentStep.thinking || undefined,
       });
       saveStepMessages(sessionManager, sessionId, agent, historyLength);
+      Logger.log('CHAT', 'Step complete', {
+        sessionId,
+        stepIndex: currentStep.stepIndex,
+        thinking: currentStep.thinking,
+        content: currentStep.content,
+      });
       broadcastToSession(sessionId, {
         type: 'step_complete',
         sessionId,
@@ -158,11 +170,10 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
 
     // 发送完成信号
     broadcastToSession(sessionId, { type: 'complete', sessionId });
-
     return { success: true };
   } catch (error) {
     const err = error as Error;
-    Logger.log('CHAT', `Error: ${err.message}`);
+    Logger.log('CHAT', 'Error', { agentId, sessionId, error: err.message });
     return { success: false, error: err.message };
   }
 }
