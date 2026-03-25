@@ -33,3 +33,4 @@ export const getAgentsDir = () => path.join(getDataDir(), 'agents');
 export const getConfigPath = () => path.join(getConfigDir(), 'config.yaml');
 export const getAuthPath = () => path.join(getDataDir(), 'auth.json');
 export const getMcpConfigPath = () => path.join(getMcpDir(), 'mcp.json');
+export const getServerJsonPath = () => path.join(getConfigDir(), 'server.json');
