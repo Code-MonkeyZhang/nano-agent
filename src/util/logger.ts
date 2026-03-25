@@ -31,6 +31,14 @@ export class Logger {
   }
 
   /**
+   * Enable or disable logging at runtime.
+   * @param enabled - Whether logging should be enabled
+   */
+  static setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+  }
+
+  /**
    * Write a log entry to the log file.
    * @param category - Log category (e.g., 'HTTP', 'SERVER', 'LLM')
    * @param message - Log message

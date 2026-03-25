@@ -11,6 +11,7 @@ import { createProviderRouter, createAuthRouter } from './routers/auth.js';
 import { createAgentRouter, type SessionManagersMap } from './routers/agent.js';
 import { createSessionRouter } from './routers/session.js';
 import { createChatRouter } from './routers/chat.js';
+import { createConfigRouter } from './routers/config.js';
 import { initWebSocket, isWebSocketInitialized } from './websocket-server.js';
 
 import { listAgentConfigs, getAgentDirPath } from '../agent/index.js';
@@ -67,6 +68,7 @@ initSessionManagers();
 
 app.use('/api/providers', createProviderRouter());
 app.use('/api/auth', createAuthRouter());
+app.use('/api/config', createConfigRouter());
 app.use('/api/agents', createAgentRouter(sessionManagers));
 app.use('/api/agents/:agentId/sessions', createSessionRouter(sessionManagers));
 app.use(
