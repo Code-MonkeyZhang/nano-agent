@@ -1,20 +1,21 @@
 /**
- * @fileoverview Type definitions for agent configuration.
+ * @fileoverview Agent配置的类型定义。
  */
 
 import { z } from 'zod';
 import type { Model, Api } from '@mariozechner/pi-ai';
+import type { Tool } from '../tools/index.js';
 
-/** Model configuration schema */
+/** 模型配置Schema */
 export const ModelConfigSchema = z.object({
   provider: z.string(),
   model: z.string(),
 });
 
-/** Model configuration type */
+/** 模型配置类型 */
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 
-/** Agent configuration schema */
+/** Agent配置Schema */
 export const AgentConfigSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
@@ -27,12 +28,12 @@ export const AgentConfigSchema = z.object({
   updatedAt: z.number(),
 });
 
-/** Agent configuration type */
+/** Agent配置类型 */
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 
 /**
- * Input schema for creating/updating an agent.
- * Removes system-managed fields (id, createdAt, updatedAt) from AgentConfigSchema.
+ * 创建/更新Agent的输入Schema。
+ * 从AgentConfigSchema中移除系统管理的字段（id、createdAt、updatedAt）。
  */
 export const AgentConfigInputSchema = AgentConfigSchema.omit({
   id: true,
@@ -40,10 +41,10 @@ export const AgentConfigInputSchema = AgentConfigSchema.omit({
   updatedAt: true,
 });
 
-/** Input for creating/updating an agent */
+/** 创建/更新Agent的输入类型 */
 export type AgentConfigInput = z.infer<typeof AgentConfigInputSchema>;
 
-/** Agent runtime config for AgentCore */
+/** AgentCore的运行时配置 */
 export interface AgentRunConfig {
   agentName: string;
   provider: string;
@@ -53,4 +54,5 @@ export interface AgentRunConfig {
   systemPrompt: string;
   workspaceDir: string;
   maxSteps: number;
+  tools: Tool[];
 }

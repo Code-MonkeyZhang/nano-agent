@@ -2,4 +2,7 @@
  * @fileoverview Public API for converters module.
  */
 
-export { convertContext } from './pi-ai-converter.js';
+export {
+  convertContext,
+  convertPiAiToolCallToNanoAgent,
+} from './pi-ai-converter.js';

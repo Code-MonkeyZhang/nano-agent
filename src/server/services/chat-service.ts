@@ -1,5 +1,5 @@
 /**
- * @fileoverview Chat service - core logic for processing messages.
+ * @fileoverview 聊天服务 - 处理消息的核心逻辑。
  */
 
 import type { SessionManager } from '../../session/index.js';
@@ -11,6 +11,9 @@ import {
 import { Logger } from '../../util/logger.js';
 import { broadcastToSession } from '../websocket-server.js';
 
+/**
+ * 处理聊天消息的请求参数。
+ */
 interface ChatRequest {
   agentId: string;
   sessionId: string;
@@ -18,6 +21,9 @@ interface ChatRequest {
   sessionManager: SessionManager;
 }
 
+/**
+ * 处理聊天消息的响应。
+ */
 interface ChatResponse {
   success: boolean;
   error?: string;
@@ -90,6 +96,7 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
 
     const historyLength = agent.messages.length;
     agent.addUserMessage(content);
+    Logger.log('CHAT', 'User message added', { agentId, sessionId, content });
 
     // 创建一个临时容器, 收集当前step的所有内容 方便广播
     let currentStep: {
