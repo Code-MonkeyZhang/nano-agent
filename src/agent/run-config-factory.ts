@@ -1,13 +1,14 @@
 /**
- * @fileoverview 创建Agent运行时配置的工厂。
+ * @fileoverview Factory for creating Agent runtime configuration.
  *
- * 从AgentConfig和Session信息组装AgentRunConfig。
+ * Assembles AgentRunConfig from AgentConfig and Session information.
  */
 
 import { getModel, type KnownProvider } from '@mariozechner/pi-ai';
 import { getAuth } from '../auth/index.js';
 import { getSkills } from '../skill/index.js';
 import type { Skill } from '../skill/index.js';
+import { getMcpToolsForServers, getMcpPromptInfo } from '../mcp/index.js';
 import {
   ReadTool,
   WriteTool,
@@ -20,9 +21,9 @@ import type { AgentConfig, AgentRunConfig } from './types.js';
 import type { Session } from '../session/types.js';
 
 /**
- * 构建带有环境上下文和技能的系统提示。
+ * Build a system prompt with environment context, skills, and MCP server info.
  *
- * 输出格式：
+ * Output format:
  * ```
  * {basePrompt}
  *
@@ -37,24 +38,23 @@ import type { Session } from '../session/types.js';
  *
  * ### {skillName1}
  * {skillContent1}
- *
- * ### {skillName2}
- * {skillContent2}
  * ```
  *
- * @param basePrompt - Agent配置中的基础系统提示
- * @param workspaceDir - 当前工作目录路径
- * @param provider - LLM提供商名称（如 'openai', 'anthropic'）
- * @param modelId - 模型标识符字符串
- * @param skills - 可用的技能数组，可选
- * @returns 附加了环境上下文和技能的完整系统提示
+ * @param basePrompt - Base system prompt from agent configuration
+ * @param workspaceDir - Current working directory path
+ * @param provider - LLM provider name (e.g. 'openai', 'anthropic')
+ * @param modelId - Model identifier string
+ * @param skills - Available skills array, optional
+ * @param mcpNames - MCP server names for status display, optional
+ * @returns Complete system prompt with environment context and skills
  */
 function buildSystemPrompt(
   basePrompt: string,
   workspaceDir: string,
   provider: string,
   modelId: string,
-  skills?: Skill[]
+  skills?: Skill[],
+  mcpNames?: string[]
 ): string {
   const platform = process.platform;
   const date = new Date().toISOString().split('T')[0];
@@ -79,6 +79,18 @@ function buildSystemPrompt(
 ### ${skill.name}
 
 ${skill.content}`;
+    }
+  }
+
+  if (mcpNames && mcpNames.length > 0) {
+    const mcpInfo = getMcpPromptInfo(mcpNames);
+    prompt += `
+
+## MCP Servers`;
+
+    for (const { name, status } of mcpInfo) {
+      prompt += `
+- ${name}: ${status}`;
     }
   }
 
@@ -124,11 +136,14 @@ export function createAgentRunConfig(
     workspaceDir,
     provider,
     modelId,
-    skills
+    skills,
+    agentConfig.mcpNames
   );
 
-  // 添加内置工具到上下文中
-  // TODO: 以后MCP是不是也放在这里?
+  const mcpTools = agentConfig.mcpNames?.length
+    ? getMcpToolsForServers(agentConfig.mcpNames)
+    : [];
+
   const tools = [
     new ReadTool(workspaceDir),
     new WriteTool(workspaceDir),
@@ -136,6 +151,7 @@ export function createAgentRunConfig(
     new BashTool(),
     new BashOutputTool(),
     new BashKillTool(),
+    ...mcpTools,
   ];
 
   return {

@@ -88,8 +88,8 @@ function createTestAgentInput(
     systemPrompt: 'You are a helpful assistant. Keep responses brief.',
     defaultModel: { provider: TEST_CONFIG.provider, model: TEST_CONFIG.model },
     maxSteps: 3,
-    mcpIds: [],
-    skillIds: [],
+    mcpNames: [],
+    skillNames: [],
     ...overrides,
   };
 }

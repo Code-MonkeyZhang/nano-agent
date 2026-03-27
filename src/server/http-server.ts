@@ -13,10 +13,12 @@ import { createSessionRouter } from './routers/session.js';
 import { createChatRouter } from './routers/chat.js';
 import { createConfigRouter } from './routers/config.js';
 import { createSkillRouter } from './routers/skill.js';
+import { createMcpRouter } from './routers/mcp.js';
 import { initWebSocket, isWebSocketInitialized } from './websocket-server.js';
 
 import { listAgentConfigs, getAgentDirPath } from '../agent/index.js';
 import { initSkillPool } from '../skill/index.js';
+import { initMcpPool } from '../mcp/index.js';
 import { SessionStore } from '../session/store.js';
 import { SessionManager } from '../session/session-manager.js';
 
@@ -68,12 +70,14 @@ function initSessionManagers(): void {
 
 initSessionManagers();
 initSkillPool();
+void initMcpPool();
 Logger.setSessionManagers(sessionManagers);
 
 app.use('/api/providers', createProviderRouter());
 app.use('/api/auth', createAuthRouter());
 app.use('/api/config', createConfigRouter());
 app.use('/api/skills', createSkillRouter());
+app.use('/api/mcp', createMcpRouter());
 app.use('/api/agents', createAgentRouter(sessionManagers));
 app.use('/api/agents/:agentId/sessions', createSessionRouter(sessionManagers));
 app.use(
