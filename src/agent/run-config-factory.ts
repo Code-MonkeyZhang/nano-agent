@@ -6,7 +6,14 @@
 
 import { getModel, type KnownProvider } from '@mariozechner/pi-ai';
 import { getAuth } from '../auth/index.js';
-import { ReadTool, WriteTool, EditTool } from '../tools/index.js';
+import {
+  ReadTool,
+  WriteTool,
+  EditTool,
+  BashTool,
+  BashOutputTool,
+  BashKillTool,
+} from '../tools/index.js';
 import type { AgentConfig, AgentRunConfig } from './types.js';
 import type { Session } from '../session/types.js';
 
@@ -92,6 +99,9 @@ export function createAgentRunConfig(
     new ReadTool(workspaceDir),
     new WriteTool(workspaceDir),
     new EditTool(workspaceDir),
+    new BashTool(),
+    new BashOutputTool(),
+    new BashKillTool(),
   ];
 
   return {

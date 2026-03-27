@@ -116,7 +116,7 @@ export class ReadTool implements Tool<ReadFileInput> {
    *
    * @param workspaceDir - 用于解析相对路径的基础目录
    */
-  constructor(private workspaceDir: string = '.') { }
+  constructor(private workspaceDir: string = '.') {}
 
   /**
    * 执行读取文件操作。
@@ -204,7 +204,7 @@ export class WriteTool implements Tool<WriteFileInput> {
    *
    * @param workspaceDir - 用于解析相对路径的基础目录
    */
-  constructor(private workspaceDir: string = '.') { }
+  constructor(private workspaceDir: string = '.') {}
 
   /**
    * 执行写入文件操作。
@@ -267,7 +267,7 @@ export class EditTool implements Tool<EditFileInput> {
    *
    * @param workspaceDir - 用于解析相对路径的基础目录
    */
-  constructor(private workspaceDir: string = '.') { }
+  constructor(private workspaceDir: string = '.') {}
 
   /**
    * 执行编辑文件操作。
