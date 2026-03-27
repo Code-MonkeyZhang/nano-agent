@@ -6,6 +6,8 @@
 
 import { getModel, type KnownProvider } from '@mariozechner/pi-ai';
 import { getAuth } from '../auth/index.js';
+import { getSkills } from '../skill/index.js';
+import type { Skill } from '../skill/index.js';
 import {
   ReadTool,
   WriteTool,
@@ -18,7 +20,7 @@ import type { AgentConfig, AgentRunConfig } from './types.js';
 import type { Session } from '../session/types.js';
 
 /**
- * 构建带有环境上下文的系统提示。
+ * 构建带有环境上下文和技能的系统提示。
  *
  * 输出格式：
  * ```
@@ -30,24 +32,34 @@ import type { Session } from '../session/types.js';
  * - Date: {YYYY-MM-DD}
  * - Model: {provider}/{modelId}
  * - Working directory: {workspaceDir}
+ *
+ * ## Available Skills
+ *
+ * ### {skillName1}
+ * {skillContent1}
+ *
+ * ### {skillName2}
+ * {skillContent2}
  * ```
  *
  * @param basePrompt - Agent配置中的基础系统提示
  * @param workspaceDir - 当前工作目录路径
  * @param provider - LLM提供商名称（如 'openai', 'anthropic'）
  * @param modelId - 模型标识符字符串
- * @returns 附加了环境上下文的完整系统提示
+ * @param skills - 可用的技能数组，可选
+ * @returns 附加了环境上下文和技能的完整系统提示
  */
 function buildSystemPrompt(
   basePrompt: string,
   workspaceDir: string,
   provider: string,
-  modelId: string
+  modelId: string,
+  skills?: Skill[]
 ): string {
   const platform = process.platform;
   const date = new Date().toISOString().split('T')[0];
 
-  return `${basePrompt}
+  let prompt = `${basePrompt}
 
 ## Environment
 
@@ -55,6 +67,22 @@ function buildSystemPrompt(
 - Date: ${date}
 - Model: ${provider}/${modelId}
 - Working directory: ${workspaceDir}`;
+
+  if (skills && skills.length > 0) {
+    prompt += `
+
+## Available Skills`;
+
+    for (const skill of skills) {
+      prompt += `
+
+### ${skill.name}
+
+${skill.content}`;
+    }
+  }
+
+  return prompt;
 }
 
 /**
@@ -86,11 +114,17 @@ export function createAgentRunConfig(
     throw new Error(`Unknown model: ${provider}/${modelId}`);
   }
 
+  // Load available skills from the pool, skipping unavailable ones
+  const skills = agentConfig.skillNames?.length
+    ? getSkills(agentConfig.skillNames)
+    : [];
+
   const systemPrompt = buildSystemPrompt(
     agentConfig.systemPrompt,
     workspaceDir,
     provider,
-    modelId
+    modelId,
+    skills
   );
 
   // 添加内置工具到上下文中

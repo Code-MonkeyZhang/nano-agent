@@ -24,6 +24,7 @@ export const AgentConfigSchema = z.object({
   defaultModel: ModelConfigSchema,
   maxSteps: z.number().int().positive(),
   defaultWorkspacePath: z.string().optional(),
+  skillNames: z.array(z.string()).default([]),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
