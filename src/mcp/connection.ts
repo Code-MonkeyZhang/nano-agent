@@ -162,7 +162,8 @@ export class MCPServerConnection {
     // streamable_http (default for URL-based connections)
     return new StreamableHTTPClientTransport(new URL(this.url), {
       requestInit: {
-        headers: Object.keys(this.headers).length > 0 ? this.headers : undefined,
+        headers:
+          Object.keys(this.headers).length > 0 ? this.headers : undefined,
       },
     });
   }

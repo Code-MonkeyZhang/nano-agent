@@ -78,13 +78,10 @@ export class AgentCore {
    * 产出思考、内容和工具执行的事件。
    * 持续运行直到模型不再产生工具调用或达到最大步数。
    *
-   * @param signal - 可选的AbortSignal用于取消流
    * @yields AgentEvent - 表示执行不同阶段的事件
    * @returns 任务完成或超过最大步数时的最终内容字符串
    */
-  async *runStream(
-    signal?: AbortSignal
-  ): AsyncGenerator<AgentEvent, string, void> {
+  async *runStream(): AsyncGenerator<AgentEvent, string, void> {
     for (let step = 0; step < this.runConfig.maxSteps; step++) {
       yield {
         type: 'step_start',
@@ -110,9 +107,6 @@ export class AgentCore {
       });
 
       for await (const event of eventStream) {
-        if (signal?.aborted) {
-          return '';
-        }
         if (event.type === 'thinking_delta') {
           yield { type: 'thinking', content: event.delta };
           fullThinking += event.delta;
@@ -146,10 +140,6 @@ export class AgentCore {
 
       // 执行每个tool calls
       for (const toolCall of toolCalls) {
-        if (signal?.aborted) {
-          return '';
-        }
-
         const toolCallId = toolCall.id;
         const functionName = toolCall.function.name;
         const args = toolCall.function.arguments || {};

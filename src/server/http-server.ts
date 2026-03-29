@@ -4,6 +4,7 @@
  */
 
 import express from 'express';
+import cors from 'cors';
 import type { Request, Response } from 'express';
 import { createServer as createHttpServer } from 'http';
 import { Logger } from '../util/logger.js';
@@ -23,6 +24,7 @@ import { SessionStore } from '../session/store.js';
 import { SessionManager } from '../session/session-manager.js';
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 app.use((req, _res, next) => {

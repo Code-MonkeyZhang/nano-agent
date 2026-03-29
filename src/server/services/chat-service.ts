@@ -8,6 +8,8 @@ import {
   AgentCore,
   createAgentRunConfig,
 } from '../../agent/index.js';
+import type { ToolCall } from '../../schema/index.js';
+import type { ToolResult } from '../../tools/index.js';
 import { Logger } from '../../util/logger.js';
 import { broadcastToSession } from '../websocket-server.js';
 
@@ -103,37 +105,72 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
       stepIndex: number;
       thinking: string;
       content: string;
+      toolCalls: ToolCall[];
+      toolResults: {
+        toolCallId: string;
+        toolName: string;
+        result: string;
+        success: boolean;
+      }[];
     } | null = null;
+
+    /** Build a step_complete event payload from the current step accumulator. */
+    const buildStepCompleteEvent = () => ({
+      type: 'step_complete' as const,
+      sessionId,
+      stepIndex: currentStep!.stepIndex,
+      thinking: currentStep!.thinking || undefined,
+      content: currentStep!.content || undefined,
+      toolCalls:
+        currentStep!.toolCalls.length > 0
+          ? currentStep!.toolCalls.map((tc) => ({
+              id: tc.id,
+              name: tc.function.name,
+              arguments: tc.function.arguments,
+            }))
+          : undefined,
+      toolResults:
+        currentStep!.toolResults.length > 0
+          ? currentStep!.toolResults
+          : undefined,
+    });
+
+    /**
+     * Flush the current step: save messages, log, and broadcast step_complete.
+     * Resets currentStep to null after broadcasting.
+     */
+    const flushCurrentStep = () => {
+      if (!currentStep) return;
+      agent.messages.push({
+        role: 'assistant',
+        content: currentStep.content,
+        thinking: currentStep.thinking || undefined,
+        tool_calls:
+          currentStep.toolCalls.length > 0 ? currentStep.toolCalls : undefined,
+      });
+      saveStepMessages(sessionManager, sessionId, agent, historyLength);
+      Logger.log('CHAT', 'Step complete', {
+        sessionId,
+        stepIndex: currentStep.stepIndex,
+        thinking: currentStep.thinking,
+        content: currentStep.content,
+        toolCallCount: currentStep.toolCalls.length,
+        toolResultCount: currentStep.toolResults.length,
+      });
+      broadcastToSession(sessionId, buildStepCompleteEvent());
+    };
 
     // 开启agent loop循环
     for await (const event of agent.runStream()) {
       switch (event.type) {
         case 'step_start':
-          // 如果有上一个step，构建消息并push到agent，然后保存并广播
-          if (currentStep) {
-            agent.messages.push({
-              role: 'assistant',
-              content: currentStep.content,
-              thinking: currentStep.thinking || undefined,
-            });
-            saveStepMessages(sessionManager, sessionId, agent, historyLength);
-            Logger.log('CHAT', 'Step complete', {
-              sessionId,
-              stepIndex: currentStep.stepIndex,
-              thinking: currentStep.thinking,
-              content: currentStep.content,
-            });
-            broadcastToSession(sessionId, {
-              type: 'step_complete',
-              sessionId,
-              ...currentStep,
-            });
-          }
-          // 创建新的step对象，用于收集本轮的思考和输出
+          flushCurrentStep();
           currentStep = {
             stepIndex: event.step,
             thinking: '',
             content: '',
+            toolCalls: [],
+            toolResults: [],
           };
           break;
 
@@ -149,31 +186,34 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
           }
           break;
 
+        case 'tool_call':
+          if (currentStep) {
+            currentStep.toolCalls.push(...event.tool_calls);
+          }
+          break;
+
+        case 'tool_result': {
+          if (currentStep) {
+            const tr: ToolResult = event.result;
+            currentStep.toolResults.push({
+              toolCallId: event.toolCallId,
+              toolName: event.toolName,
+              result: tr.success
+                ? tr.content
+                : `Error: ${tr.error ?? 'Unknown error'}`,
+              success: tr.success,
+            });
+          }
+          break;
+        }
+
         case 'error':
           return { success: false, error: event.error };
       }
     }
 
-    // 处理最后一个step：构建消息并push到agent，然后保存并广播
-    if (currentStep) {
-      agent.messages.push({
-        role: 'assistant',
-        content: currentStep.content,
-        thinking: currentStep.thinking || undefined,
-      });
-      saveStepMessages(sessionManager, sessionId, agent, historyLength);
-      Logger.log('CHAT', 'Step complete', {
-        sessionId,
-        stepIndex: currentStep.stepIndex,
-        thinking: currentStep.thinking,
-        content: currentStep.content,
-      });
-      broadcastToSession(sessionId, {
-        type: 'step_complete',
-        sessionId,
-        ...currentStep,
-      });
-    }
+    // 处理最后一个step
+    flushCurrentStep();
 
     // 发送完成信号
     broadcastToSession(sessionId, { type: 'complete', sessionId });
