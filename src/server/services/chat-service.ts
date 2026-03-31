@@ -13,6 +13,13 @@ import type { ToolResult } from '../../tools/index.js';
 import { Logger } from '../../util/logger.js';
 import { broadcastToSession } from '../websocket-server.js';
 
+const MAX_RESULT_LENGTH = 1000;
+
+function truncate(str: string, maxLen: number): string {
+  if (str.length <= maxLen) return str;
+  return `${str.slice(0, maxLen)}...`;
+}
+
 /**
  * 处理聊天消息的请求参数。
  */
@@ -72,12 +79,26 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
   const session = sessionManager.getSession(sessionId);
   // TODO: 这个已经在外面查过了, 是不是不用再查一遍了? 或者这个本来就应该放在这里check?
   if (!session) {
-    return { success: false, error: `Session not found: ${sessionId}` };
+    const errorMsg = `Session not found: ${sessionId}`;
+    broadcastToSession(sessionId, {
+      type: 'error',
+      sessionId,
+      message: errorMsg,
+    });
+    broadcastToSession(sessionId, { type: 'complete', sessionId });
+    return { success: false, error: errorMsg };
   }
 
   const agentConfig = getAgentConfig(agentId);
   if (!agentConfig) {
-    return { success: false, error: `Agent not found: ${agentId}` };
+    const errorMsg = `Agent not found: ${agentId}`;
+    broadcastToSession(sessionId, {
+      type: 'error',
+      sessionId,
+      message: errorMsg,
+    });
+    broadcastToSession(sessionId, { type: 'complete', sessionId });
+    return { success: false, error: errorMsg };
   }
 
   //TODO: 这里不应该使用当前目录作为兜底, 应该在./nano-agent这个文件夹中有一个空的workspace作为默认工作目录
@@ -124,10 +145,10 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
       toolCalls:
         currentStep!.toolCalls.length > 0
           ? currentStep!.toolCalls.map((tc) => ({
-              id: tc.id,
-              name: tc.function.name,
-              arguments: tc.function.arguments,
-            }))
+            id: tc.id,
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+          }))
           : undefined,
       toolResults:
         currentStep!.toolResults.length > 0
@@ -157,6 +178,18 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
         toolCallCount: currentStep.toolCalls.length,
         toolResultCount: currentStep.toolResults.length,
       });
+      for (const tr of currentStep.toolResults) {
+        const toolCall = currentStep.toolCalls.find(
+          (tc) => tc.id === tr.toolCallId
+        );
+        Logger.log('TOOL', `Tool executed: ${tr.toolName}`, {
+          sessionId,
+          toolName: tr.toolName,
+          arguments: toolCall?.function.arguments,
+          success: tr.success,
+          result: truncate(tr.result, MAX_RESULT_LENGTH),
+        });
+      }
       broadcastToSession(sessionId, buildStepCompleteEvent());
     };
 
@@ -207,8 +240,16 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
           break;
         }
 
-        case 'error':
+        case 'error': {
+          flushCurrentStep();
+          broadcastToSession(sessionId, {
+            type: 'error',
+            sessionId,
+            message: event.error,
+          });
+          broadcastToSession(sessionId, { type: 'complete', sessionId });
           return { success: false, error: event.error };
+        }
       }
     }
 
@@ -221,6 +262,12 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
   } catch (error) {
     const err = error as Error;
     Logger.log('CHAT', 'Error', { agentId, sessionId, error: err.message });
+    broadcastToSession(sessionId, {
+      type: 'error',
+      sessionId,
+      message: err.message,
+    });
+    broadcastToSession(sessionId, { type: 'complete', sessionId });
     return { success: false, error: err.message };
   }
 }

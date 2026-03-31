@@ -119,7 +119,17 @@ export class AgentCore {
           const nanoToolCall = convertPiAiToolCallToNanoAgent(event.toolCall);
           toolCalls.push(nanoToolCall);
         }
-        if (event.type === 'done' || event.type === 'error') {
+        if (event.type === 'error') {
+          const errorMsg =
+            (event.error as { errorMessage?: string; stopReason?: string })
+              .errorMessage ||
+            (event.error as { errorMessage?: string; stopReason?: string })
+              .stopReason ||
+            'LLM stream error';
+          yield { type: 'error', error: errorMsg };
+          break;
+        }
+        if (event.type === 'done') {
           break;
         }
       }
