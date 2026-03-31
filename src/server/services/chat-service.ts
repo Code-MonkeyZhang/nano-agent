@@ -145,10 +145,10 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
       toolCalls:
         currentStep!.toolCalls.length > 0
           ? currentStep!.toolCalls.map((tc) => ({
-            id: tc.id,
-            name: tc.function.name,
-            arguments: tc.function.arguments,
-          }))
+              id: tc.id,
+              name: tc.function.name,
+              arguments: tc.function.arguments,
+            }))
           : undefined,
       toolResults:
         currentStep!.toolResults.length > 0
@@ -162,13 +162,6 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
      */
     const flushCurrentStep = () => {
       if (!currentStep) return;
-      agent.messages.push({
-        role: 'assistant',
-        content: currentStep.content,
-        thinking: currentStep.thinking || undefined,
-        tool_calls:
-          currentStep.toolCalls.length > 0 ? currentStep.toolCalls : undefined,
-      });
       saveStepMessages(sessionManager, sessionId, agent, historyLength);
       Logger.log('CHAT', 'Step complete', {
         sessionId,

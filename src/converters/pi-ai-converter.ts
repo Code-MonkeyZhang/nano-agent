@@ -80,16 +80,22 @@ export function convertMessages(messages: Message[]): PiAiMessage[] {
         timestamp: Date.now(),
       };
       result.push(assistantMsg);
-    } else if (msg.role === 'tool') {
-      const toolResultMsg: ToolResultMessage = {
-        role: 'toolResult',
-        toolCallId: msg.tool_call_id,
-        toolName: msg.tool_name ?? '',
-        content: [{ type: 'text', text: msg.content }],
-        isError: msg.content.startsWith('Error:'),
-        timestamp: Date.now(),
-      };
-      result.push(toolResultMsg);
+
+      if (msg.tool_calls) {
+        for (const tc of msg.tool_calls) {
+          if (tc.toolResult) {
+            const toolResultMsg: ToolResultMessage = {
+              role: 'toolResult',
+              toolCallId: tc.id,
+              toolName: tc.function.name,
+              content: [{ type: 'text', text: tc.toolResult.content }],
+              isError: tc.toolResult.isError,
+              timestamp: Date.now(),
+            };
+            result.push(toolResultMsg);
+          }
+        }
+      }
     }
   }
 

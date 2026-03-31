@@ -37,6 +37,10 @@ export interface ToolCall {
     name: string;
     arguments: Record<string, unknown>;
   };
+  toolResult?: {
+    content: string;
+    isError: boolean;
+  };
 }
 
 /**
@@ -60,8 +64,4 @@ export interface ToolResultMessage {
   tool_name?: string;
 }
 
-export type Message =
-  | SystemMessage
-  | UserMessage
-  | AssistantMessage
-  | ToolResultMessage;
+export type Message = SystemMessage | UserMessage | AssistantMessage;

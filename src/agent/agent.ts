@@ -134,21 +134,19 @@ export class AgentCore {
         }
       }
 
-      // 将生成Message加入对话历史
-      this.messages.push({
-        role: 'assistant',
-        content: fullContent,
-        thinking: fullThinking || undefined,
-        tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
-      });
-
+      // 如果没有Tool Call就结束循环
       if (toolCalls.length === 0) {
+        this.messages.push({
+          role: 'assistant',
+          content: fullContent,
+          thinking: fullThinking || undefined,
+        });
         return fullContent;
       }
 
       yield { type: 'tool_call', tool_calls: toolCalls };
 
-      // 执行每个tool calls
+      //执行每一个Tool Call
       for (const toolCall of toolCalls) {
         const toolCallId = toolCall.id;
         const functionName = toolCall.function.name;
@@ -165,15 +163,21 @@ export class AgentCore {
           toolName: functionName,
         };
 
-        this.messages.push({
-          role: 'tool',
+        // 记录Tool Result
+        toolCall.toolResult = {
           content: result.success
             ? result.content
             : `Error: ${result.error ?? 'Unknown error'}`,
-          tool_call_id: toolCallId,
-          tool_name: functionName,
-        });
+          isError: !result.success,
+        };
       }
+
+      this.messages.push({
+        role: 'assistant',
+        content: fullContent,
+        thinking: fullThinking || undefined,
+        tool_calls: toolCalls,
+      });
     }
 
     return `Task couldn't be completed after ${this.runConfig.maxSteps} steps.`;
