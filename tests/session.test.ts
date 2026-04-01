@@ -21,7 +21,7 @@ import { SessionStore } from '../src/session/store.js';
 import { SessionManager } from '../src/session/session-manager.js';
 import type { Session, SessionMeta } from '../src/session/types.js';
 import type { SessionManagersMap } from '../src/server/routers/agent.js';
-import type { CreateAgentConfigInput } from '../src/agent/index.js';
+import type { AgentConfigInput } from '../src/agent/index.js';
 
 /** 临时测试目录 */
 let tempDir: string;
@@ -75,8 +75,8 @@ const defaultModel = { provider: 'openai', model: 'gpt-4' };
  * @returns Agent 配置输入对象
  */
 function createTestAgentInput(
-  overrides: Partial<CreateAgentConfigInput> = {}
-): CreateAgentConfigInput {
+  overrides: Partial<AgentConfigInput> = {}
+): AgentConfigInput {
   return {
     name: 'Test Agent',
     systemPrompt: 'You are a helpful assistant.',

@@ -25,7 +25,7 @@ import { createSessionRouter } from '../src/server/routers/session.js';
 import { createChatRouter } from '../src/server/routers/chat.js';
 import { createProviderRouter, createAuthRouter } from '../src/server/routers/auth.js';
 import { initWebSocket, shutdownWebSocket } from '../src/server/websocket-server.js';
-import type { AgentConfig, CreateAgentConfigInput } from '../src/agent/index.js';
+import type { AgentConfig, AgentConfigInput } from '../src/agent/index.js';
 import type { Session } from '../src/session/types.js';
 
 /** 测试配置：MiniMax-CN 提供商 */
@@ -81,8 +81,8 @@ let sessionManagers: SessionManagersMap;
  * @returns Agent 配置对象
  */
 function createTestAgentInput(
-  overrides: Partial<CreateAgentConfigInput> = {}
-): CreateAgentConfigInput {
+  overrides: Partial<AgentConfigInput> = {}
+): AgentConfigInput {
   return {
     name: 'Test Agent',
     systemPrompt: 'You are a helpful assistant. Keep responses brief.',
