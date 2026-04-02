@@ -20,21 +20,57 @@ export function writeServerInfo(port: number): void {
 }
 
 /**
+ * Read the current server.json content, or return null if it doesn't exist.
+ */
+export function readServerInfo(): ServerInfo | null {
+  const filePath = getServerJsonPath();
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+  const content = fs.readFileSync(filePath, 'utf8');
+  return JSON.parse(content) as ServerInfo;
+}
+
+/**
+ * Write the tunnel URL into server.json so Desktop clients can discover it.
+ */
+export function updateTunnelUrl(url: string): void {
+  const info = readServerInfo();
+  if (!info) return;
+  info.tunnelUrl = url;
+  fs.writeFileSync(getServerJsonPath(), JSON.stringify(info, null, 2));
+}
+
+/**
+ * Clear the tunnel URL from server.json.
+ */
+export function clearTunnelUrl(): void {
+  const info = readServerInfo();
+  if (!info) return;
+  info.tunnelUrl = null;
+  fs.writeFileSync(getServerJsonPath(), JSON.stringify(info, null, 2));
+}
+
+/**
  * Delete server.json file.
  */
 export function deleteServerInfo(): void {
-  const path = getServerJsonPath();
-  if (fs.existsSync(path)) {
-    fs.unlinkSync(path);
+  const filePath = getServerJsonPath();
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
   }
 }
 
 /**
  * Setup exit handlers to clean up server.json on process termination.
+ * Also stops the tunnel subprocess to prevent orphan processes.
  */
 export function setupExitHandlers(): void {
   const cleanup = (): void => {
     Logger.log('SERVER', 'Server shutting down');
+    void import('../server/tunnel-service.js')
+      .then(({ stopTunnel }) => stopTunnel())
+      .catch(() => {});
     deleteServerInfo();
     process.exit(0);
   };

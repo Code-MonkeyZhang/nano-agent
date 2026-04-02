@@ -9,4 +9,5 @@ export interface ServerInfo {
   port: number;
   pid: number;
   url: string;
+  tunnelUrl?: string | null;
 }
