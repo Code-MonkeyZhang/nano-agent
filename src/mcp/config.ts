@@ -1,7 +1,7 @@
 /**
  * @fileoverview MCP configuration file loader.
  *
- * Reads mcp.json from ~/.nano-agent/data/mcp/mcp.json and returns
+ * Reads mcp.json from ~/.nano-agent/mcp/mcp.json and returns
  * the parsed server configurations.
  */
 
@@ -17,7 +17,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * Load and parse the MCP configuration file.
  *
- * @param configPath - Optional custom path to mcp.json (default: ~/.nano-agent/data/mcp/mcp.json)
+ * @param configPath - Optional custom path to mcp.json (default: ~/.nano-agent/mcp/mcp.json)
  * @returns A map of server name -> server config, or an empty map if file doesn't exist
  */
 export function loadMcpConfig(

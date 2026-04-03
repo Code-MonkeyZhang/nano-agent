@@ -2,18 +2,16 @@
  * @fileoverview Application initialization utilities.
  * Creates required directories and config files on first run.
  *
- * Initialized Folder Structure (~/.nano-agent/):
+ * Initialized directory structure (~/.nano-agent/):
  * ~/.nano-agent/
  * ├── config/
- * │   └── config.yaml
- * ├── data/
- * │   ├── auth.json
- * │   ├── skills/
- * │   ├── agents/
- * │   └── mcp/
- * │       ├── mcp.json
- * │       └── servers/
- * ├── agent-space/
+ * │   ├── config.yaml
+ * │   └── auth.json
+ * ├── agents/
+ * ├── skills/
+ * ├── mcp/
+ * │   └── servers/
+ * ├── workspace/
  * └── logs/
  */
 
@@ -23,7 +21,6 @@ import {
   getConfigDir,
   getConfigPath,
   getAuthPath,
-  getDataDir,
   getLogsDir,
   getMcpConfigPath,
   getMcpDir,
@@ -35,7 +32,6 @@ import { getDefaultConfigYaml } from '../config/index.js';
 
 const REQUIRED_DIRS = [
   getConfigDir,
-  getDataDir,
   getAgentsDir,
   getWorkspaceDir,
   getLogsDir,

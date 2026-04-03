@@ -3,7 +3,6 @@
  */
 
 export {
-  getAgentDirPath,
   hasAgentConfig,
   getAgentConfig,
   listAgentConfigs,

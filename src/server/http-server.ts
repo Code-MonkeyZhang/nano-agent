@@ -18,7 +18,7 @@ import { createMcpRouter } from './routers/mcp.js';
 import { createTunnelRouter } from './routers/tunnel.js';
 import { initWebSocket, isWebSocketInitialized } from './websocket-server.js';
 
-import { listAgentConfigs, getAgentDirPath } from '../agent/index.js';
+import { listAgentConfigs } from '../agent/index.js';
 import { initSkillPool } from '../skill/index.js';
 import { initMcpPool } from '../mcp/index.js';
 import { SessionStore } from '../session/store.js';
@@ -57,7 +57,7 @@ const sessionManagers: SessionManagersMap = new Map();
 function initSessionManagers(): void {
   const agentConfigs = listAgentConfigs();
   for (const agentConfig of agentConfigs) {
-    const store = new SessionStore(getAgentDirPath(agentConfig.id));
+    const store = new SessionStore(agentConfig.id);
     sessionManagers.set(
       agentConfig.id,
       new SessionManager(

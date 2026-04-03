@@ -46,6 +46,13 @@ let authPath: string;
 /** Mock 路径模块，使用临时目录 */
 mock.module('../src/util/paths.js', () => ({
   getAgentsDir: () => agentsDir,
+  getAgentDir: (id: string) => `${agentsDir}/${id}`,
+  getAgentConfigPath: (id: string) => `${agentsDir}/${id}/config.json`,
+  getAgentAssetsDir: (id: string) => `${agentsDir}/${id}/assets`,
+  getAgentAssetsBodyDir: (id: string) => `${agentsDir}/${id}/assets/body`,
+  getAgentAssetsBackgroundsDir: (id: string) => `${agentsDir}/${id}/assets/backgrounds`,
+  getAgentSessionsDir: (id: string) => `${agentsDir}/${id}/sessions`,
+  getAgentMemoryDir: (id: string) => `${agentsDir}/${id}/memory`,
   getAuthPath: () => authPath,
 }));
 

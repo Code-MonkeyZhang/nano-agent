@@ -29,6 +29,13 @@ let agentsDir: string;
 /** Mock 路径模块，使用临时目录 */
 mock.module('../src/util/paths.js', () => ({
   getAgentsDir: () => agentsDir,
+  getAgentDir: (id: string) => `${agentsDir}/${id}`,
+  getAgentConfigPath: (id: string) => `${agentsDir}/${id}/config.json`,
+  getAgentAssetsDir: (id: string) => `${agentsDir}/${id}/assets`,
+  getAgentAssetsBodyDir: (id: string) => `${agentsDir}/${id}/assets/body`,
+  getAgentAssetsBackgroundsDir: (id: string) => `${agentsDir}/${id}/assets/backgrounds`,
+  getAgentSessionsDir: (id: string) => `${agentsDir}/${id}/sessions`,
+  getAgentMemoryDir: (id: string) => `${agentsDir}/${id}/memory`,
 }));
 
 import {
@@ -38,8 +45,8 @@ import {
   updateAgentConfig,
   deleteAgentConfig,
   hasAgentConfig,
-  getAgentDirPath,
 } from '../src/agent/index.js';
+import { getAgentDir } from '../src/util/paths.js';
 import { createAgentRouter } from '../src/server/routers/agent.js';
 
 /** 查找可用端口，避免端口冲突 */
@@ -250,7 +257,7 @@ describe('Agent Module Integration Tests', () => {
       /** 测试：删除 Agent 时移除整个目录 */
       it('should remove entire agent directory', () => {
         const agent = createAgentConfig(createTestAgentInput());
-        const agentDir = getAgentDirPath(agent.id);
+        const agentDir = getAgentDir(agent.id);
         expect(fs.existsSync(agentDir)).toBe(true);
 
         deleteAgentConfig(agent.id);

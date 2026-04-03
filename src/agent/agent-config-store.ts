@@ -8,28 +8,32 @@
  * - Delete: deleteAgentConfig()
  *
  * Each agent is stored in its own directory:
- * {agentsDir}/{agentId}/config.json
+ * agents/{agentId}/
+ * ├── config.json
+ * ├── assets/
+ * │   ├── body/
+ * │   └── backgrounds/
+ * ├── sessions/
+ * └── memory/
  */
 
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { getAgentsDir } from '../util/paths.js';
+import {
+  getAgentsDir,
+  getAgentDir,
+  getAgentConfigPath,
+  getAgentAssetsDir,
+  getAgentAssetsBodyDir,
+  getAgentAssetsBackgroundsDir,
+  getAgentSessionsDir,
+  getAgentMemoryDir,
+} from '../util/paths.js';
 import {
   AgentConfigSchema,
   type AgentConfig,
   type AgentConfigInput,
 } from './types.js';
-
-/** Get the directory path for a specific agent */
-export function getAgentDirPath(id: string): string {
-  return path.join(getAgentsDir(), id);
-}
-
-/** Get the config file path for a specific agent */
-function getAgentConfigPath(id: string): string {
-  return path.join(getAgentDirPath(id), 'config.json');
-}
 
 /** Atomic write to prevent data corruption */
 function writeJsonAtomic(filePath: string, data: unknown): void {
@@ -83,7 +87,9 @@ export function listAgentConfigs(): AgentConfig[] {
 }
 
 /**
- * Create a new agent config and persist it to disk.
+ * Create a new agent config.
+ * assets/, assets/body/, assets/backgrounds/, sessions/, memory/
+ *
  * @param input - Agent configuration input
  * @returns Created agent configuration
  */
@@ -98,10 +104,16 @@ export function createAgentConfig(input: AgentConfigInput): AgentConfig {
     updatedAt: now,
   };
 
-  const agentDir = getAgentDirPath(id);
+  const agentDir = getAgentDir(id);
   if (!fs.existsSync(agentDir)) {
     fs.mkdirSync(agentDir, { recursive: true });
   }
+
+  fs.mkdirSync(getAgentAssetsDir(id), { recursive: true });
+  fs.mkdirSync(getAgentAssetsBodyDir(id), { recursive: true });
+  fs.mkdirSync(getAgentAssetsBackgroundsDir(id), { recursive: true });
+  fs.mkdirSync(getAgentSessionsDir(id), { recursive: true });
+  fs.mkdirSync(getAgentMemoryDir(id), { recursive: true });
 
   writeJsonAtomic(getAgentConfigPath(id), config);
   return config;
@@ -131,7 +143,7 @@ export function updateAgentConfig(
 
 /** Delete an agent and all its data */
 export function deleteAgentConfig(id: string): void {
-  const agentDir = getAgentDirPath(id);
+  const agentDir = getAgentDir(id);
   if (fs.existsSync(agentDir)) {
     fs.rmSync(agentDir, { recursive: true });
   }

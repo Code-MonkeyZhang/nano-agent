@@ -3,22 +3,26 @@
  *
  * Storage structure:
  * {agentDir}/
- * ├── sessions.json      # Index file with all session metadata
- * └── sessions/
- *     └── {sessionId}.json  # Full session data with messages
+ * ├── sessions/
+ * │   ├── index.json          # Index file with all session metadata
+ * │   └── {sessionId}.json    # Full session data with messages
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {
+  getAgentSessionsDir,
+  getAgentSessionIndexPath,
+} from '../util/paths.js';
 import type { Session, SessionMeta } from './types.js';
 
 export class SessionStore {
   private readonly sessionsDir: string;
   private readonly indexPath: string;
 
-  constructor(basePath: string) {
-    this.sessionsDir = path.join(basePath, 'sessions');
-    this.indexPath = path.join(basePath, 'sessions.json');
+  constructor(agentId: string) {
+    this.sessionsDir = getAgentSessionsDir(agentId);
+    this.indexPath = getAgentSessionIndexPath(agentId);
     this.ensureDirs();
   }
 

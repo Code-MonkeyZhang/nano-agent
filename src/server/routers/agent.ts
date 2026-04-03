@@ -17,7 +17,6 @@ import {
   createAgentConfig,
   updateAgentConfig,
   deleteAgentConfig,
-  getAgentDirPath,
   AgentConfigInputSchema,
 } from '../../agent/index.js';
 import { SessionStore } from '../../session/store.js';
@@ -82,8 +81,7 @@ export function createAgentRouter(
 
       // register new agent in SessionManager map
       if (sessionManagers) {
-        const agentBasePath = getAgentDirPath(agent.id);
-        const sessionStore = new SessionStore(agentBasePath);
+        const sessionStore = new SessionStore(agent.id);
         const sessionManager = new SessionManager(
           sessionStore,
           agent.id,

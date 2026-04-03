@@ -27,17 +27,27 @@ import type { AgentConfigInput } from '../src/agent/index.js';
 let tempDir: string;
 /** Agent 配置目录 */
 let agentsDir: string;
+/** 当前测试用的 agentId */
+let currentAgentId: string;
 
 mock.module('../src/util/paths.js', () => ({
   getAgentsDir: () => agentsDir,
+  getAgentDir: (id: string) => `${agentsDir}/${id}`,
+  getAgentConfigPath: (id: string) => `${agentsDir}/${id}/config.json`,
+  getAgentSessionsDir: (id: string) => `${agentsDir}/${id}/sessions`,
+  getAgentSessionIndexPath: (id: string) => `${agentsDir}/${id}/sessions/index.json`,
+  getAgentAssetsDir: (id: string) => `${agentsDir}/${id}/assets`,
+  getAgentAssetsBodyDir: (id: string) => `${agentsDir}/${id}/assets/body`,
+  getAgentAssetsBackgroundsDir: (id: string) => `${agentsDir}/${id}/assets/backgrounds`,
+  getAgentMemoryDir: (id: string) => `${agentsDir}/${id}/memory`,
 }));
 
 import { createSessionRouter } from '../src/server/routers/session.js';
 import { createAgentRouter } from '../src/server/routers/agent.js';
 import {
   createAgentConfig,
-  getAgentDirPath,
 } from '../src/agent/index.js';
+import { getAgentDir } from '../src/util/paths.js';
 
 /**
  * 查找可用端口用于测试服务器
@@ -121,13 +131,13 @@ describe('Session Module Integration Tests', () => {
   /** SessionStore 测试 */
   describe('SessionStore', () => {
     let store: SessionStore;
-    let storeBasePath: string;
 
     /** 每个测试前初始化 Store */
     beforeEach(() => {
-      storeBasePath = path.join(tempDir, 'store-test', 'agent-1');
-      fs.mkdirSync(storeBasePath, { recursive: true });
-      store = new SessionStore(storeBasePath);
+      currentAgentId = 'store-test-agent-1';
+      const agentDir = path.join(agentsDir, currentAgentId);
+      fs.mkdirSync(agentDir, { recursive: true });
+      store = new SessionStore(currentAgentId);
     });
 
     /** loadIndex / saveIndex 测试 */
@@ -250,8 +260,8 @@ describe('Session Module Integration Tests', () => {
       const agent = createAgentConfig(createTestAgentInput({ id: 'session-agent' }));
       agentId = agent.id;
 
-      const agentBasePath = getAgentDirPath(agentId);
-      const store = new SessionStore(agentBasePath);
+      const agentBasePath = getAgentDir(agentId);
+      const store = new SessionStore(agentId);
       manager = new SessionManager(
         store,
         agentId,
