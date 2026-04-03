@@ -1,124 +1,74 @@
-import * as path from 'node:path';
+/**
+ * @fileoverview Session file storage operations.
+ *
+ * Storage structure:
+ * {agentDir}/
+ * ├── sessions/
+ * │   ├── index.json          # Index file with all session metadata
+ * │   └── {sessionId}.json    # Full session data with messages
+ */
+
 import * as fs from 'node:fs';
+import * as path from 'node:path';
+import {
+  getAgentSessionsDir,
+  getAgentSessionIndexPath,
+} from '../util/paths.js';
 import type { Session, SessionMeta } from './types.js';
 
-const SESSIONS_SUBDIR = 'sessions';
-const INDEX_FILE = 'sessions.json';
-
-/**
- * 为Session提供CRUD文件操作的基础类
- *
- * 目录结构：
- * {basePath}/
- * ├── sessions.json    # 索引文件
- * └── sessions/        # session 文件目录
- */
 export class SessionStore {
-  private basePath: string;
-  private sessionsDir: string;
-  private indexPath: string;
+  private readonly sessionsDir: string;
+  private readonly indexPath: string;
 
-  /**
-   * Creates SessionStore instance.
-   *
-   * @param basePath - Base directory for this store (e.g., data/agents/adam)
-   */
-  constructor(basePath: string) {
-    if (!basePath) {
-      throw new Error('basePath is required');
-    }
-    this.basePath = basePath;
-    this.sessionsDir = path.join(this.basePath, SESSIONS_SUBDIR);
-    this.indexPath = path.join(this.basePath, INDEX_FILE);
+  constructor(agentId: string) {
+    this.sessionsDir = getAgentSessionsDir(agentId);
+    this.indexPath = getAgentSessionIndexPath(agentId);
+    this.ensureDirs();
   }
 
-  /**
-   * Ensures the base and sessions directories exist.
-   * And creates them recursively if needed.
-   */
-  private ensureDirExists(): void {
-    if (!fs.existsSync(this.basePath)) {
-      fs.mkdirSync(this.basePath, { recursive: true });
-    }
+  /** Ensure required directories exist */
+  private ensureDirs(): void {
     if (!fs.existsSync(this.sessionsDir)) {
       fs.mkdirSync(this.sessionsDir, { recursive: true });
     }
   }
 
-  /**
-   * Loads the session index from disk.
-   *
-   * @returns Array of session metadata. Returns empty array if file doesn't exist or is invalid.
-   */
+  /** Get the sessions directory path */
+  getSessionsPath(): string {
+    return this.sessionsDir;
+  }
+
+  /** Load the session index */
   loadIndex(): SessionMeta[] {
     if (!fs.existsSync(this.indexPath)) {
       return [];
     }
-    try {
-      const content = fs.readFileSync(this.indexPath, 'utf-8');
-      return JSON.parse(content) as SessionMeta[];
-    } catch {
-      return [];
-    }
+    const content = fs.readFileSync(this.indexPath, 'utf8');
+    return JSON.parse(content) as SessionMeta[];
   }
 
-  /**
-   * Saves the session index to disk.
-   * Uses atomic write to prevent corruption.
-   *
-   * @param sessions - Array of session metadata to save
-   */
+  /** Save the session index */
   saveIndex(sessions: SessionMeta[]): void {
-    this.ensureDirExists();
     this.writeJsonAtomic(this.indexPath, sessions);
   }
 
-  /**
-   * Loads a specific session from disk.
-   *
-   * @param id - Session identifier
-   * @returns Session object with messages, or null if not found or invalid
-   */
+  /** Load a full session by ID */
   loadSession(id: string): Session | null {
     const sessionPath = path.join(this.sessionsDir, `${id}.json`);
     if (!fs.existsSync(sessionPath)) {
       return null;
     }
-    try {
-      const content = fs.readFileSync(sessionPath, 'utf-8');
-      return JSON.parse(content) as Session;
-    } catch {
-      return null;
-    }
+    const content = fs.readFileSync(sessionPath, 'utf8');
+    return JSON.parse(content) as Session;
   }
 
-  /**
-   * Saves a session to disk.
-   * Uses atomic write to prevent corruption.
-   *
-   * @param session - Complete session object including messages
-   */
+  /** Save a full session */
   saveSession(session: Session): void {
-    this.ensureDirExists();
     const sessionPath = path.join(this.sessionsDir, `${session.id}.json`);
     this.writeJsonAtomic(sessionPath, session);
   }
 
-  /**
-   * Returns the sessions directory path.
-   *
-   * @returns Absolute path to the sessions directory
-   */
-  getSessionsPath(): string {
-    return this.sessionsDir;
-  }
-
-  /**
-   * Deletes a session file from disk.
-   *
-   * @param id - Session identifier
-   * @returns true if file was deleted, false if it didn't exist
-   */
+  /** Delete a session file */
   deleteSessionFile(id: string): boolean {
     const sessionPath = path.join(this.sessionsDir, `${id}.json`);
     if (fs.existsSync(sessionPath)) {
@@ -128,16 +78,10 @@ export class SessionStore {
     return false;
   }
 
-  /**
-   * Writes JSON atomically using temp file + rename,
-   * preventing data corruption if write is interrupted.
-   *
-   * @param filePath - Target file path
-   * @param data - Data to serialize as JSON
-   */
+  /** Atomic write to prevent data corruption */
   private writeJsonAtomic(filePath: string, data: unknown): void {
     const tmpPath = `${filePath}.tmp`;
-    fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
+    fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2));
     fs.renameSync(tmpPath, filePath);
   }
 }

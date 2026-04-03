@@ -1,23 +1,13 @@
 /**
- * JSON Schema type.
- * Used to describe a Tool's parameter structure following the JSON Schema spec.
- * Example: { type: "object", properties: { path: { type: "string" } }, required: ["path"] }
+ * @fileoverview 工具系统的基础类型和接口。
  */
-export type JsonSchema = Record<string, unknown>;
 
-/**
- * Base type for Tool input parameters.
- * All Tool `execute()` methods should accept parameters compatible with this type.
- */
+export type JsonSchema = Record<string, unknown>;
 export type ToolInput = Record<string, unknown>;
 
 /**
- * Unified structure for Tool execution results.
- * All Tool `execute()` methods must return an object that matches this shape.
- *
- * @property success - Whether the execution succeeded
- * @property content - Result content (output text when successful)
- * @property error   - Error message (optional, when failed)
+ * 工具执行结果的统一结构。
+ * 所有工具必须以此格式返回结果以便统一处理。
  */
 export interface ToolResult {
   success: boolean;
@@ -26,42 +16,30 @@ export interface ToolResult {
 }
 
 /**
- * Tool result with extra metadata (extended).
- * Useful for tools that need to return additional fields (e.g. BashTool returning stdout/stderr/exitCode).
- *
- * @template TMeta - Type of extra metadata, must extend Record<string, unknown>
- *
- * @example
- * // Define the return type for a Bash tool
- * type BashResult = ToolResultWithMeta<{
- *   stdout: string;
- *   stderr: string;
- *   exitCode: number;
- *   bashId?: string;
- * }>;
+ * 带额外元数据的工具结果类型。
+ * 用于需要返回结构化数据的工具（如 Bash）。
  */
 export type ToolResultWithMeta<
   TMeta extends Record<string, unknown> = Record<string, never>,
 > = ToolResult & TMeta;
 
 /**
- * Tool interface - the core interface all tools must implement.
+ * 工具接口 - 所有工具必须实现此接口。
  *
- * @template Input  - Input parameter type accepted by the tool
- * @template Output - Result type returned by the tool
- *
- * @property name        - Tool name (used by the LLM when calling the tool)
- * @property description - Tool description (tells the LLM what it does and how to use it)
- * @property parameters  - JSON Schema parameter definition (used by the LLM to construct valid args)
- * @method execute       - Async execution method that takes params and returns a result
- *
+ * @template Input - 输入参数类型（继承自ToolInput）
+ * @template Output - 执行结果类型（继承自ToolResult）
  */
 export interface Tool<
   Input extends ToolInput = ToolInput,
   Output extends ToolResult = ToolResult,
 > {
   name: string;
-  description: string;
+  description?: string;
   parameters: JsonSchema;
+  /**
+   * 使用给定参数执行工具。
+   * @param params - 与JSON Schema匹配的输入参数
+   * @returns 解析为ToolResult的Promise
+   */
   execute(params: Input): Promise<Output>;
 }

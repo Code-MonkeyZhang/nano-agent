@@ -1,4 +1,9 @@
-import { describe, it, expect } from 'vitest';
+/**
+ * @fileoverview BashTool 单元测试
+ * 测试前台命令、后台命令、输出读取、进程终止
+ */
+
+import { describe, it, expect } from 'bun:test';
 import {
   BashTool,
   BashOutputTool,

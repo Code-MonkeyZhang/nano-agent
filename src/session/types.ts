@@ -1,34 +1,28 @@
-import type { AgentId } from '../agent-config/types.js';
+/**
+ * @fileoverview Type definitions for session management.
+ */
+
+import type { ModelConfig } from '../agent/types.js';
 import type { Message } from '../schema/index.js';
 
-/**
- * Options for creating a new session.
- */
-export interface CreateSessionOptions {
-  title?: string;
-  workspacePath?: string;
-  modelId?: string;
-}
-
-/**
- * Session metadata stored in the index file (sessions.json).
- * Contains summary information without the full message history.
- */
+/** Session metadata stored in the index */
 export interface SessionMeta {
   id: string;
-  agentId: AgentId;
+  agentId: string;
   title: string;
   createdAt: number;
   updatedAt: number;
   messageCount: number;
   workspacePath?: string;
-  modelId?: string;
+  model: ModelConfig;
 }
 
-/**
- * Complete session data including full message history.
- * Stored in individual session files ({sessionId}.json).
- */
+/** Full session with messages */
 export interface Session extends SessionMeta {
   messages: Message[];
+}
+
+/** Options for creating a new session */
+export interface CreateSessionOptions {
+  title?: string;
 }

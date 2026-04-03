@@ -1,60 +1,36 @@
-#!/usr/bin/env node
 /**
- * @fileoverview CLI entry point for Nano Agent.
- * Provides commands for running the AI assistant and HTTP server.
- * @module nano-agent/cli
+ * @fileoverview Server startup entry point.
  */
 
-import { Command } from 'commander';
-import { run } from './cli.js';
-import { Logger } from './util/logger.js';
-import { getServerManager } from './server/index.js';
+import { initAllDirsAndFiles, Logger } from './util/index.js';
+import { getLogsDir, getConfigPath } from './util/paths.js';
+import { loadConfig } from './config/index.js';
+import { startServer } from './server/index.js';
+import { writeServerInfo, setupExitHandlers } from './util/server-info.js';
 
-const program = new Command();
+/**
+ * 主函数：初始化配置、启动服务器
+ */
+async function main(): Promise<void> {
+  // 从命令行参数获取端口号
+  const portStr = process.argv[2];
+  if (!portStr) {
+    throw new Error('Port argument is required');
+  }
+  const port = parseInt(portStr, 10);
 
-// CLI Entry
-program
-  .name('nano-agent')
-  .description('Nano Agent - AI assistant')
-  .action(() => {
-    run().catch((error: unknown) => {
-      Logger.log('ERROR', 'Fatal error', error);
-      process.exit(1);
-    });
-  });
+  initAllDirsAndFiles();
+  const config = loadConfig(getConfigPath());
+  Logger.initialize(getLogsDir(), config.enableLogging);
 
-// Server Entry
-program
-  .command('server')
-  .description('Start the HTTP server for desktop app')
-  .option('--tunnel', 'Enable Cloudflare tunnel for public access', false)
-  .action(async (options: { tunnel: boolean }) => {
-    const manager = getServerManager();
-    const result = await manager.start({ enableTunnel: options.tunnel });
+  // 启动服务器
+  await startServer(port);
+  writeServerInfo(port);
+  setupExitHandlers();
+}
 
-    if (result.success) {
-      console.log('Nano-Agent server started successfully');
-      console.log(`Local URL: http://localhost:${manager.getPort()}`);
-
-      /**
-       * Shutdown the server gracefully.
-       */
-      const shutdown = (): void => {
-        console.log('Shutting down server...');
-        void manager.stop().then(() => {
-          process.exit(0);
-        });
-      };
-
-      // Handle termination signals
-      // SIGTERM: from `kill` command
-      // SIGINT: from Ctrl+C
-      process.on('SIGTERM', shutdown);
-      process.on('SIGINT', shutdown);
-    } else {
-      console.error('Failed to start server:', result.error);
-      process.exit(1);
-    }
-  });
-
-program.parse();
+// 捕获主函数中的错误并优雅退出
+main().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});

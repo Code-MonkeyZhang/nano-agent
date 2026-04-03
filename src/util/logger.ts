@@ -1,176 +1,129 @@
+/**
+ * @fileoverview Logger utility for nano-agent.
+ *
+ * Provides file-based logging with category, message, and optional data support.
+ * Automatically enriches logs with human-readable names when agentId/sessionId
+ * are present in the data object.
+ */
+
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { getLogsDir } from '../paths.js';
+import { format } from 'date-fns';
+import type { SessionManager } from '../session/session-manager.js';
+import { getAgentConfig } from '../agent/agent-config-store.js';
 
+type SessionManagersMap = Map<string, SessionManager>;
+
+interface LogData {
+  agentId?: string;
+  sessionId?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Static logger class for writing logs to file.
+ */
 export class Logger {
   private static logFile: string | null = null;
-  private static initialized = false;
-  private static mode: 'agent' | 'server' = 'agent';
   private static enabled = false;
+  private static sessionManagers: SessionManagersMap | null = null;
 
-  static initialize(
-    logDir?: string,
-    mode: 'agent' | 'server' = 'agent',
-    enabled?: boolean
-  ): string {
-    this.mode = mode;
+  /**
+   * Initialize the logger.
+   * @param logDir - Log directory path (caller ensures it exists)
+   * @param enabled - Whether logging is enabled (default: false)
+   * @returns The path to the created log file
+   */
+  static initialize(logDir: string, enabled?: boolean): string {
     this.enabled = enabled ?? false;
-
-    if (this.initialized) {
-      return this.logFile ?? '';
-    }
-
-    const logsDir = logDir ?? this.getLogsDirectory();
-    if (!fs.existsSync(logsDir)) {
-      fs.mkdirSync(logsDir, { recursive: true });
-    }
     const now = new Date();
-    const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
-    const prefix = mode === 'server' ? 'server' : 'agent';
-    this.logFile = path.join(logsDir, `${prefix}-${timestamp}.log`);
-    this.initialized = true;
+    const timestamp = format(now, 'yyyy-MM-dd-HH-mm-ss');
+    this.logFile = path.join(logDir, `agent-${timestamp}.log`);
 
     return this.logFile;
   }
 
-static getLogsDirectory(): string {
-  return getLogsDir();
-}
-
-  static getMode(): 'agent' | 'server' {
-    return this.mode;
+  /**
+   * Enable or disable logging at runtime.
+   * @param enabled - Whether logging should be enabled
+   */
+  static setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
   }
 
-  static log(category: string, message: string, data?: unknown) {
+  /**
+   * Inject session managers reference for name lookup.
+   * Called after sessionManagers are initialized in http-server.ts.
+   * @param sessionManagers - Map of agentId to SessionManager
+   */
+  static setSessionManagers(sessionManagers: SessionManagersMap): void {
+    this.sessionManagers = sessionManagers;
+  }
+
+  /**
+   * Write a log entry to the log file.
+   * @param category - Log category (e.g., 'HTTP', 'SERVER', 'LLM')
+   * @param message - Log message
+   * @param data - Optional additional data to log. If contains agentId or sessionId,
+   *               will auto-enrich with agent name and session title.
+   */
+  static log(category: string, message: string, data?: unknown): void {
     if (!this.enabled) return;
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    const ms = String(now.getMilliseconds()).padStart(3, '0');
-
-    const timestamp = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${ms}Z`;
+    const timestamp = format(new Date(), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+    const enrichedData = this.enrichData(data);
 
     let formattedData = '';
-    if (data !== undefined && data !== null) {
-      if (typeof data === 'string') {
-        // Format string data with newlines and indentation
-        formattedData = `\n${data
+    if (enrichedData !== undefined && enrichedData !== null) {
+      if (typeof enrichedData === 'string') {
+        formattedData = `\n${enrichedData
           .split('\n')
           .map((line) => `  ${line}`)
           .join('\n')}`;
       } else {
-        formattedData = JSON.stringify(data, null, 2);
+        formattedData = `\n${JSON.stringify(enrichedData, null, 2)}`;
       }
     }
 
     const fileEntry = `[${timestamp}] [${category}] ${message}${formattedData}\n`;
 
-    // Write to file if initialized
     if (this.logFile) {
       fs.appendFileSync(this.logFile, fileEntry);
     }
   }
 
-  static debug(category: string, message: string, data?: unknown) {
-    this.log(category, message, data);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  static logLLMRequest(request: any) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const summary: any = {
-      model: request.model,
-      stream: request.stream,
-      messagesCount: request.messages?.length || 0,
-    };
-
-    if (request.tools && request.tools.length > 0) {
-      summary.toolCount = request.tools.length;
+  /**
+   * Enrich log data with human-readable names for agentId and sessionId.
+   * @param data - Original log data
+   * @returns Enriched data with agentName and sessionTitle fields added
+   */
+  private static enrichData(data: unknown): unknown {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return data;
     }
 
-    this.log('LLM REQUEST', 'Request summary', summary);
-  }
+    const logData = data as LogData;
+    const result: Record<string, unknown> = { ...logData };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  static logLLMResponse(response: any) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const summary: any = {
-      model: response.model,
-    };
-
-    this.log('LLM DEBUG', 'Response structure check', {
-      keys: Object.keys(response).join(', '),
-      hasChoices: !!response.choices,
-      choicesLength: response.choices?.length || 0,
-      hasAccumulatedContent: 'accumulatedContent' in response,
-      accumulatedContentType: typeof response.accumulatedContent,
-      hasFinishReason: 'finishReason' in response,
-    });
-
-    if (response.choices && response.choices.length > 0) {
-      summary.type = 'standard';
-      summary.choiceCount = response.choices.length;
-      const firstChoice = response.choices[0];
-      summary.finishReason = firstChoice.finish_reason;
-      const content = firstChoice.message?.content || '';
-      summary.contentLength = content.length;
-      if (content.length > 0) {
-        summary.content = content;
-      }
-      const hasToolCalls = !!(
-        firstChoice.message?.tool_calls &&
-        firstChoice.message.tool_calls.length > 0
-      );
-      summary.hasToolCalls = hasToolCalls;
-      if (summary.hasToolCalls) {
-        summary.toolCallCount = firstChoice.message.tool_calls.length;
-      }
-    } else if (
-      'accumulatedContent' in response ||
-      'tool_calls' in response ||
-      'finishReason' in response
-    ) {
-      summary.type = 'streaming';
-      const content = response.accumulatedContent || '';
-      summary.contentLength = content.length;
-      if (content.length > 0) {
-        summary.content = content;
-      }
-      const thinking = response.accumulatedThinking || '';
-      if (thinking.length > 0) {
-        summary.thinking = thinking;
-      }
-      summary.finishReason = response.finishReason;
-      summary.chunkCount = response.chunkCount || 0;
-      const hasToolCalls = !!(
-        response.tool_calls && response.tool_calls.length > 0
-      );
-      summary.hasToolCalls = hasToolCalls;
-      if (summary.hasToolCalls) {
-        summary.toolCallCount = response.tool_calls.length;
+    if (logData.agentId) {
+      const agentConfig = getAgentConfig(logData.agentId);
+      result['agentId'] = logData.agentId;
+      if (agentConfig?.name) {
+        result['agentName'] = agentConfig.name;
       }
     }
 
-    this.log('LLM RESPONSE', 'Response summary', summary);
+    if (logData.sessionId && this.sessionManagers) {
+      result['sessionId'] = logData.sessionId;
+      for (const sessionManager of this.sessionManagers.values()) {
+        const session = sessionManager.getSession(logData.sessionId);
+        if (session?.title) {
+          result['sessionTitle'] = session.title;
+          break;
+        }
+      }
+    }
+
+    return result;
   }
 }
-
-export const sdkLoggerAdapter = {
-  debug(message: string, ...args: unknown[]) {
-    Logger.log('LLM SDK', message, args.length > 0 ? args : undefined);
-  },
-  info(message: string, ...args: unknown[]) {
-    Logger.log('LLM SDK', message, args.length > 0 ? args : undefined);
-  },
-  warn(message: string, ...args: unknown[]) {
-    Logger.log('LLM SDK WARN', message, args.length > 0 ? args : undefined);
-  },
-  error(message: string, ...args: unknown[]) {
-    Logger.log('LLM SDK ERROR', message, args.length > 0 ? args : undefined);
-  },
-};

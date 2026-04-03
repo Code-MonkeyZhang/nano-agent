@@ -1,67 +1,37 @@
+/**
+ * @fileoverview HTTP server setup for nano-agent server.
+ *
+ */
+
 import express from 'express';
+import cors from 'cors';
 import type { Request, Response } from 'express';
 import { createServer as createHttpServer } from 'http';
-import cors from 'cors';
-import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createSessionRouter } from './sessions.js';
-import { createConfigRouter } from './config-router.js';
-import { createCredentialRouter } from './credential-router.js';
-import { createAgentRouter } from './agent-router.js';
-import { createBuiltinToolRouter } from './builtin-tool-router.js';
-import { createMcpRouter } from './mcp-router.js';
-import { createSkillRouter } from './skill-router.js';
-import { createAvatarRouter } from './avatar-router.js';
 import { Logger } from '../util/logger.js';
-import type { SessionManager } from '../session/index.js';
+import { createProviderRouter, createAuthRouter } from './routers/auth.js';
+import { createAgentRouter, type SessionManagersMap } from './routers/agent.js';
+import { createSessionRouter } from './routers/session.js';
+import { createChatRouter } from './routers/chat.js';
+import { createConfigRouter } from './routers/config.js';
+import { createSkillRouter } from './routers/skill.js';
+import { createMcpRouter } from './routers/mcp.js';
+import { createTunnelRouter } from './routers/tunnel.js';
+import { initWebSocket, isWebSocketInitialized } from './websocket-server.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PRESETS_DIR = path.resolve(__dirname, '..', '..', 'resources', 'avatars');
+import { listAgentConfigs } from '../agent/index.js';
+import { initSkillPool } from '../skill/index.js';
+import { initMcpPool } from '../mcp/index.js';
+import { SessionStore } from '../session/store.js';
+import { SessionManager } from '../session/session-manager.js';
 
 const app = express();
-
-app.use(
-  cors({
-    origin: (_origin, callback) => {
-      callback(null, true);
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  })
-);
-
+app.use(cors());
 app.use(express.json());
 
 app.use((req, _res, next) => {
   Logger.log('HTTP', `${req.method} ${req.path}`);
   next();
 });
-
-export type SessionManagersMap = Map<string, SessionManager>;
-
-export async function setupOpenAIRoutes(
-  sessionManagers?: SessionManagersMap
-): Promise<void> {
-  if (sessionManagers) {
-    app.use(
-      '/api/agents/:agentId/sessions',
-      createSessionRouter(sessionManagers)
-    );
-    Logger.log('HTTP', 'Registered dynamic session router for agents');
-  }
-
-  app.use('/api/config', createConfigRouter());
-  app.use('/api/credentials', createCredentialRouter());
-  app.use('/api/providers', createCredentialRouter());
-  app.use('/api/agents', createAgentRouter(sessionManagers));
-  app.use('/api/builtin-tools', createBuiltinToolRouter());
-  app.use('/api/mcp', createMcpRouter());
-  app.use('/api/skills', createSkillRouter());
-  app.use('/api', createAvatarRouter());
-  app.use('/presets/avatars', express.static(PRESETS_DIR));
-  Logger.log('HTTP', 'Routes configured');
-}
 
 app.get('/api/status', (_req: Request, res: Response) => {
   res.json({
@@ -78,5 +48,52 @@ app.get('/health', (_req: Request, res: Response) => {
   });
 });
 
+/** Global session managers map */
+const sessionManagers: SessionManagersMap = new Map();
+
+/**
+ * 给所有Agent创建对应的SessionStore, 然后保存在SessionManagersMap映射关系
+ */
+function initSessionManagers(): void {
+  const agentConfigs = listAgentConfigs();
+  for (const agentConfig of agentConfigs) {
+    const store = new SessionStore(agentConfig.id);
+    sessionManagers.set(
+      agentConfig.id,
+      new SessionManager(
+        store,
+        agentConfig.id,
+        agentConfig.defaultModel,
+        agentConfig.defaultWorkspacePath
+      )
+    );
+  }
+  Logger.log('SERVER', `Initialized ${agentConfigs.length} session managers`);
+}
+
+initSessionManagers();
+initSkillPool();
+void initMcpPool();
+Logger.setSessionManagers(sessionManagers);
+
+app.use('/api/providers', createProviderRouter());
+app.use('/api/auth', createAuthRouter());
+app.use('/api/config', createConfigRouter());
+app.use('/api/skills', createSkillRouter());
+app.use('/api/mcp', createMcpRouter());
+app.use('/api/tunnel', createTunnelRouter());
+app.use('/api/agents', createAgentRouter(sessionManagers));
+app.use('/api/agents/:agentId/sessions', createSessionRouter(sessionManagers));
+app.use(
+  '/api/agents/:agentId/sessions/:sessionId/chat',
+  createChatRouter(sessionManagers)
+);
+
 const httpServer = createHttpServer(app);
-export { httpServer, app };
+
+// Initialize WebSocket server
+if (!isWebSocketInitialized()) {
+  initWebSocket(httpServer);
+}
+
+export { httpServer };

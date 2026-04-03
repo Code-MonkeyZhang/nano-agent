@@ -1,3 +1,7 @@
+/**
+ * @fileoverview 内部类型与pi-ai格式之间的转换层。
+ */
+
 import type {
   Context,
   Message as PiAiMessage,
@@ -11,9 +15,15 @@ import type {
 } from '@mariozechner/pi-ai';
 import { Type, type TSchema } from '@sinclair/typebox';
 import type { Message, ToolCall } from '../schema/index.js';
-import type { Tool } from '../tools/base.js';
+import type { Tool } from '../tools/index.js';
 
-// pi-ai 和 nano-agent 之间的格式转换层 TODO: 以后可能要统一使用pi-ai的格式
+/**
+ * 将内部Message数组转换为pi-ai Message数组。
+ * 处理用户、助手和工具消息。
+ *
+ * @param messages - 内部消息对象数组
+ * @returns pi-ai格式的消息数组
+ */
 export function convertMessages(messages: Message[]): PiAiMessage[] {
   const result: PiAiMessage[] = [];
 
@@ -64,42 +74,57 @@ export function convertMessages(messages: Message[]): PiAiMessage[] {
           cacheRead: 0,
           cacheWrite: 0,
           totalTokens: 0,
-          cost: {
-            input: 0,
-            output: 0,
-            cacheRead: 0,
-            cacheWrite: 0,
-            total: 0,
-          },
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
         },
         stopReason: 'stop',
         timestamp: Date.now(),
       };
       result.push(assistantMsg);
-    } else if (msg.role === 'tool') {
-      const toolResultMsg: ToolResultMessage = {
-        role: 'toolResult',
-        toolCallId: msg.tool_call_id,
-        toolName: msg.tool_name ?? '',
-        content: [{ type: 'text', text: msg.content }],
-        isError: msg.content.startsWith('Error:'),
-        timestamp: Date.now(),
-      };
-      result.push(toolResultMsg);
+
+      if (msg.tool_calls) {
+        for (const tc of msg.tool_calls) {
+          if (tc.toolResult) {
+            const toolResultMsg: ToolResultMessage = {
+              role: 'toolResult',
+              toolCallId: tc.id,
+              toolName: tc.function.name,
+              content: [{ type: 'text', text: tc.toolResult.content }],
+              isError: tc.toolResult.isError,
+              timestamp: Date.now(),
+            };
+            result.push(toolResultMsg);
+          }
+        }
+      }
     }
   }
 
   return result;
 }
 
+/**
+ * 将内部Tool数组转换为pi-ai Tool数组。
+ *
+ * @param tools - 内部Tool实例数组
+ * @returns pi-ai格式的工具定义数组
+ */
 export function convertTools(tools: Tool[]): PiAiTool[] {
   return tools.map((tool) => ({
     name: tool.name,
-    description: tool.description,
+    description: tool.description ?? '',
     parameters: jsonSchemaToTypeBox(tool.parameters),
   }));
 }
 
+/**
+ * 递归将JSON Schema转换为TypeBox Schema。
+ *
+ * 支持基本类型（string、number、boolean）、数组和对象。
+ * 对于无法识别的类型，回退到Type.Any。
+ *
+ * @param schema - 要转换的JSON Schema对象
+ * @returns 等价的TypeBox Schema
+ */
 function jsonSchemaToTypeBox(schema: Record<string, unknown>): TSchema {
   const type = schema['type'] as string | undefined;
 
@@ -140,6 +165,12 @@ function jsonSchemaToTypeBox(schema: Record<string, unknown>): TSchema {
   }
 }
 
+/**
+ * 将pi-ai ToolCall转换为内部ToolCall格式。
+ *
+ * @param toolCall - pi-ai ToolCall对象
+ * @returns 带有function包装的内部ToolCall
+ */
 export function convertPiAiToolCallToNanoAgent(
   toolCall: PiAiToolCall
 ): ToolCall {
@@ -153,7 +184,15 @@ export function convertPiAiToolCallToNanoAgent(
   };
 }
 
-export function createContext(
+/**
+ * 从系统提示、消息和工具创建pi-ai Context。
+ *
+ * @param systemPrompt - 模型的系统指令
+ * @param messages - 对话历史
+ * @param tools - 模型可用的工具
+ * @returns 准备好用于流式处理的pi-ai Context对象
+ */
+export function convertContext(
   systemPrompt: string,
   messages: Message[],
   tools: Tool[]

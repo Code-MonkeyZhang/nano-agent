@@ -1,3 +1,12 @@
+/**
+ * @fileoverview 用于读取、写入和编辑文件的文件系统工具。
+ *
+ * 提供三个文件操作工具：
+ * - ReadTool: 读取文件内容，支持可选的offset/limit
+ * - WriteTool: 创建或覆盖文件
+ * - EditTool: 在文件中执行精确的字符串替换
+ */
+
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import type { Tool, ToolResult } from './base.js';
@@ -20,7 +29,11 @@ type EditFileInput = {
 };
 
 /**
- * Resolve file paths relative to the workspace directory.
+ * 相对于工作区目录解析文件路径。
+ *
+ * @param workspaceDir - 相对路径的基础目录
+ * @param targetPath - 要解析的路径（绝对或相对）
+ * @returns 绝对路径
  */
 function resolvePath(workspaceDir: string, targetPath: string): string {
   if (path.isAbsolute(targetPath)) {
@@ -30,7 +43,12 @@ function resolvePath(workspaceDir: string, targetPath: string): string {
 }
 
 /**
- * Truncate long content with a head/tail strategy based on a token estimate.
+ * 基于token估算，使用头部/尾部策略截断长内容。
+ * 保留大约一半的内容从头和尾开始。
+ *
+ * @param text - 可能需要截断的文本内容
+ * @param maxTokens - 允许的最大估算token数
+ * @returns 如果在限制内则返回原文本，否则返回带说明的截断文本
  */
 function truncateTextByTokens(text: string, maxTokens: number): string {
   if (!text) {
@@ -61,13 +79,17 @@ function truncateTextByTokens(text: string, maxTokens: number): string {
   return headPart + truncationNote + tailPart;
 }
 
+/**
+ * 从文件系统读取文件内容的工具。
+ *
+ * 输出包含行号，格式为 'LINE_NUMBER|LINE_CONTENT'。
+ * 支持通过指定行offset和limit来读取部分内容。
+ */
 export class ReadTool implements Tool<ReadFileInput> {
   public name = 'read_file';
   public description =
-    'Read file contents from the filesystem. Output always includes line numbers ' +
-    "in format 'LINE_NUMBER|LINE_CONTENT' (1-indexed). Supports reading partial content " +
-    'by specifying line offset and limit for large files. ' +
-    'You can call this tool multiple times in parallel to read different files simultaneously.';
+    "Read file contents from the filesystem. Output includes line numbers in format 'LINE_NUMBER|LINE_CONTENT'. " +
+    'Supports reading partial content by specifying line offset and limit for large files.';
   public parameters = {
     type: 'object',
     properties: {
@@ -89,10 +111,18 @@ export class ReadTool implements Tool<ReadFileInput> {
     required: ['path'],
   };
 
+  /**
+   * 创建一个新的ReadTool实例。
+   *
+   * @param workspaceDir - 用于解析相对路径的基础目录
+   */
   constructor(private workspaceDir: string = '.') {}
 
   /**
-   * Read file content with optional line slicing and numbering.
+   * 执行读取文件操作。
+   *
+   * @param params - 输入参数，包括path、offset和limit
+   * @returns 包含文件内容或错误消息的ToolResult
    */
   async execute(params: ReadFileInput): Promise<ToolResult> {
     const targetPath = resolvePath(this.workspaceDir, params.path);
@@ -142,12 +172,17 @@ export class ReadTool implements Tool<ReadFileInput> {
   }
 }
 
+/**
+ * 向文件写入内容的工具。
+ *
+ * 将完全覆盖现有文件。
+ * 对于现有文件，应先使用read_file读取。
+ */
 export class WriteTool implements Tool<WriteFileInput> {
   public name = 'write_file';
   public description =
     'Write content to a file. Will overwrite existing files completely. ' +
-    'For existing files, you should read the file first using read_file. ' +
-    'Prefer editing existing files over creating new ones unless explicitly needed.';
+    'For existing files, you should read the file first using read_file.';
   public parameters = {
     type: 'object',
     properties: {
@@ -164,10 +199,18 @@ export class WriteTool implements Tool<WriteFileInput> {
     required: ['path', 'content'],
   };
 
+  /**
+   * 创建一个新的WriteTool实例。
+   *
+   * @param workspaceDir - 用于解析相对路径的基础目录
+   */
   constructor(private workspaceDir: string = '.') {}
 
   /**
-   * Write full content to a file, creating parent directories if needed.
+   * 执行写入文件操作。
+   *
+   * @param params - 输入参数，包括path和content
+   * @returns 包含成功消息或错误的ToolResult
    */
   async execute(params: WriteFileInput): Promise<ToolResult> {
     const targetPath = resolvePath(this.workspaceDir, params.path);
@@ -188,12 +231,17 @@ export class WriteTool implements Tool<WriteFileInput> {
   }
 }
 
+/**
+ * 在文件中执行精确字符串替换的工具。
+ *
+ * old_str必须完全匹配且在文件中唯一出现。
+ * 编辑前必须先读取文件。
+ */
 export class EditTool implements Tool<EditFileInput> {
   public name = 'edit_file';
   public description =
     'Perform exact string replacement in a file. The old_str must match exactly ' +
-    'and appear uniquely in the file, otherwise the operation will fail. ' +
-    'You must read the file first before editing. Preserve exact indentation from the source.';
+    'and appear uniquely in the file. You must read the file first before editing.';
   public parameters = {
     type: 'object',
     properties: {
@@ -208,16 +256,24 @@ export class EditTool implements Tool<EditFileInput> {
       },
       new_str: {
         type: 'string',
-        description: 'Replacement string (use for refactoring, renaming, etc.)',
+        description: 'Replacement string',
       },
     },
     required: ['path', 'old_str', 'new_str'],
   };
 
+  /**
+   * 创建一个新的EditTool实例。
+   *
+   * @param workspaceDir - 用于解析相对路径的基础目录
+   */
   constructor(private workspaceDir: string = '.') {}
 
   /**
-   * Replace occurrences of old_str with new_str in the target file.
+   * 执行编辑文件操作。
+   *
+   * @param params - 输入参数，包括path、old_str和new_str
+   * @returns 包含成功消息或错误的ToolResult
    */
   async execute(params: EditFileInput): Promise<ToolResult> {
     const targetPath = resolvePath(this.workspaceDir, params.path);

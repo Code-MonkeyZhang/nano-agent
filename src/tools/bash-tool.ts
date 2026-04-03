@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Bash命令执行工具。
+ *
+ * 支持前台和后台执行shell命令。
+ * 后台命令可通过 bash_output 监控，通过 bash_kill 终止。
+ */
+
 import { exec, spawn } from 'node:child_process';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { Tool, ToolResultWithMeta } from './base.js';

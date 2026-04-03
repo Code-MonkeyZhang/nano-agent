@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "time-server": {
-      "command": "uvx",
-      "args": ["mcp-server-time"],
-      "description": "A simple example server that provides time tools"
-    }
-  }
-}
