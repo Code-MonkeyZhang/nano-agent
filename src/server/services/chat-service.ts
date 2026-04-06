@@ -12,6 +12,7 @@ import type { ToolCall } from '../../schema/index.js';
 import type { ToolResult } from '../../tools/index.js';
 import { Logger } from '../../util/logger.js';
 import { broadcastToSession } from '../websocket-server.js';
+import { generateTitle } from '../../session/title-generator.js';
 
 const MAX_RESULT_LENGTH = 1000;
 
@@ -120,6 +121,34 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
     const historyLength = agent.messages.length;
     agent.addUserMessage(content);
     Logger.log('CHAT', 'User message added', { agentId, sessionId, content });
+
+    // Fire-and-forget: auto-generate title on the first message
+    const isFirstMessage = session.messageCount === 0;
+    const isDefaultTitle = session.title === 'New Session';
+    if (isFirstMessage && isDefaultTitle) {
+      Logger.log('TITLE', 'Auto-generating title', { sessionId });
+      const { provider: modelProvider, model: modelId } = session.model;
+      generateTitle(content, modelProvider, modelId)
+        .then((title) => {
+          if (!title) {
+            Logger.log('TITLE', 'Generation returned empty', { sessionId });
+            return;
+          }
+          Logger.log('TITLE', 'Title generated', { sessionId, title });
+          sessionManager.updateTitle(sessionId, title);
+          broadcastToSession(sessionId, {
+            type: 'title_updated',
+            sessionId,
+            title,
+          });
+        })
+        .catch((err) => {
+          Logger.log('TITLE', 'Generation error', {
+            sessionId,
+            error: (err as Error).message,
+          });
+        });
+    }
 
     // 创建一个临时容器, 收集当前step的所有内容 方便广播
     let currentStep: {
