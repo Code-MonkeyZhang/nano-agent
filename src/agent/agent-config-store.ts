@@ -11,7 +11,7 @@
  * agents/{agentId}/
  * ├── config.json
  * ├── assets/
- * │   ├── body/
+ * │   ├── pose/
  * │   └── backgrounds/
  * ├── sessions/
  * └── memory/
@@ -24,7 +24,7 @@ import {
   getAgentDir,
   getAgentConfigPath,
   getAgentAssetsDir,
-  getAgentAssetsBodyDir,
+  getAgentAssetsPoseDir,
   getAgentAssetsBackgroundsDir,
   getAgentSessionsDir,
   getAgentMemoryDir,
@@ -88,7 +88,7 @@ export function listAgentConfigs(): AgentConfig[] {
 
 /**
  * Create a new agent config.
- * assets/, assets/body/, assets/backgrounds/, sessions/, memory/
+ * assets/, assets/pose/, assets/backgrounds/, sessions/, memory/
  *
  * @param input - Agent configuration input
  * @returns Created agent configuration
@@ -110,7 +110,7 @@ export function createAgentConfig(input: AgentConfigInput): AgentConfig {
   }
 
   fs.mkdirSync(getAgentAssetsDir(id), { recursive: true });
-  fs.mkdirSync(getAgentAssetsBodyDir(id), { recursive: true });
+  fs.mkdirSync(getAgentAssetsPoseDir(id), { recursive: true });
   fs.mkdirSync(getAgentAssetsBackgroundsDir(id), { recursive: true });
   fs.mkdirSync(getAgentSessionsDir(id), { recursive: true });
   fs.mkdirSync(getAgentMemoryDir(id), { recursive: true });

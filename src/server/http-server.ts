@@ -16,6 +16,7 @@ import { createConfigRouter } from './routers/config.js';
 import { createSkillRouter } from './routers/skill.js';
 import { createMcpRouter } from './routers/mcp.js';
 import { createTunnelRouter } from './routers/tunnel.js';
+import { createAssetsRouter } from './routers/assets.js';
 import { initWebSocket, isWebSocketInitialized } from './websocket-server.js';
 
 import { listAgentConfigs } from '../agent/index.js';
@@ -83,6 +84,7 @@ app.use('/api/skills', createSkillRouter());
 app.use('/api/mcp', createMcpRouter());
 app.use('/api/tunnel', createTunnelRouter());
 app.use('/api/agents', createAgentRouter(sessionManagers));
+app.use('/api/agents/:agentId/assets', createAssetsRouter());
 app.use('/api/agents/:agentId/sessions', createSessionRouter(sessionManagers));
 app.use(
   '/api/agents/:agentId/sessions/:sessionId/chat',

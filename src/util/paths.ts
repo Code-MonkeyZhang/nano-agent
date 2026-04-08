@@ -13,7 +13,7 @@
  * │       ├── assets/
  * │       │   ├── avatar.png
  * │       │   ├── voice.aac
- * │       │   ├── body/
+ * │       │   ├── pose/
  * │       │   └── backgrounds/
  * │       ├── sessions/
  * │       │   ├── index.json
@@ -77,8 +77,8 @@ export function getAgentAssetsDir(agentId: string): string {
   return path.join(getAgentDir(agentId), 'assets');
 }
 
-export function getAgentAssetsBodyDir(agentId: string): string {
-  return path.join(getAgentAssetsDir(agentId), 'body');
+export function getAgentAssetsPoseDir(agentId: string): string {
+  return path.join(getAgentAssetsDir(agentId), 'pose');
 }
 
 export function getAgentAssetsBackgroundsDir(agentId: string): string {
