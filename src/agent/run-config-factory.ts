@@ -17,6 +17,7 @@ import {
   BashOutputTool,
   BashKillTool,
 } from '../tools/index.js';
+import { ShowPoseTool, GetCurrentPoseTool } from '../tools/pose-tools.js';
 import type { AgentConfig, AgentRunConfig } from './types.js';
 import type { Session } from '../session/types.js';
 
@@ -151,6 +152,8 @@ export function createAgentRunConfig(
     new BashTool(),
     new BashOutputTool(),
     new BashKillTool(),
+    new ShowPoseTool(agentConfig.id),
+    new GetCurrentPoseTool(agentConfig.id),
     ...mcpTools,
   ];
 
