@@ -170,7 +170,12 @@ export async function processChat(request: ChatRequest): Promise<ChatResponse> {
       sessionId,
       stepIndex: currentStep!.stepIndex,
       thinking: currentStep!.thinking || undefined,
-      content: currentStep!.content || undefined,
+      // TODO: 临时去重 — 某些 OpenAI 兼容提供者会在 content 和 reasoning_content 中返回相同文本，
+      // 导致 thinking 与 content 完全一致。应在 agent.ts 层面改用 streamSimple() 正确控制 reasoning 行为。
+      content:
+        currentStep!.thinking && currentStep!.thinking === currentStep!.content
+          ? undefined
+          : currentStep!.content || undefined,
       toolCalls:
         currentStep!.toolCalls.length > 0
           ? currentStep!.toolCalls.map((tc) => ({
