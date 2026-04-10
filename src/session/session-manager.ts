@@ -7,13 +7,12 @@ import { SessionStore } from './store.js';
 import type { Session, SessionMeta, CreateSessionOptions } from './types.js';
 import type { ModelConfig } from '../agent/types.js';
 import type { Message } from '../schema/index.js';
+import { getAgentConfig } from '../agent/agent-config-store.js';
 
 export class SessionManager {
   constructor(
     private readonly store: SessionStore,
-    private readonly agentId: string,
-    private readonly defaultModel: ModelConfig,
-    private readonly defaultWorkspacePath?: string
+    private readonly agentId: string
   ) {}
 
   /** List all sessions for this agent */
@@ -23,6 +22,11 @@ export class SessionManager {
 
   /** Create a new session */
   createSession(options: CreateSessionOptions = {}): Session {
+    const agentConfig = getAgentConfig(this.agentId);
+    if (!agentConfig) {
+      throw new Error(`Agent config not found: ${this.agentId}`);
+    }
+
     const id = randomUUID();
     const now = Date.now();
 
@@ -34,8 +38,8 @@ export class SessionManager {
       updatedAt: now,
       messageCount: 0,
       messages: [],
-      workspacePath: this.defaultWorkspacePath,
-      model: this.defaultModel,
+      workspacePath: agentConfig.defaultWorkspacePath,
+      model: agentConfig.defaultModel,
     };
 
     this.store.saveSession(session);

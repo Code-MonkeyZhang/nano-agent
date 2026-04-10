@@ -61,12 +61,7 @@ function initSessionManagers(): void {
     const store = new SessionStore(agentConfig.id);
     sessionManagers.set(
       agentConfig.id,
-      new SessionManager(
-        store,
-        agentConfig.id,
-        agentConfig.defaultModel,
-        agentConfig.defaultWorkspacePath
-      )
+      new SessionManager(store, agentConfig.id)
     );
   }
   Logger.log('SERVER', `Initialized ${agentConfigs.length} session managers`);

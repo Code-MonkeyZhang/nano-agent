@@ -264,9 +264,7 @@ describe('Session Module Integration Tests', () => {
       const store = new SessionStore(agentId);
       manager = new SessionManager(
         store,
-        agentId,
-        agent.defaultModel,
-        agent.defaultWorkspacePath
+        agentId
       );
     });
 

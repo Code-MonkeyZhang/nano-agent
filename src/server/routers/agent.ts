@@ -84,9 +84,7 @@ export function createAgentRouter(
         const sessionStore = new SessionStore(agent.id);
         const sessionManager = new SessionManager(
           sessionStore,
-          agent.id,
-          agent.defaultModel,
-          agent.defaultWorkspacePath
+          agent.id
         );
         sessionManagers.set(agent.id, sessionManager);
       }
